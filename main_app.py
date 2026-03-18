@@ -12,10 +12,16 @@ for folder in folders:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-# --- 2. FUNGSI KONVERSI GAMBAR KE BASE64 ---
+# --- 2. FUNGSI KONVERSI GAMBAR (DIPERBAIKI UNTUK CLOUD) ---
 def get_image_base64(path):
     if not path: return None
-    clean_path = path.replace('app/', '')
+    
+    # Menghapus path lokal laptop jika terbawa di database
+    # Misal: 'C:/DATA/...' atau 'app/static/...' akan menjadi 'static/...'
+    clean_path = path.replace('\\', '/')
+    if 'static/' in clean_path:
+        clean_path = 'static/' + clean_path.split('static/')[-1]
+    
     if os.path.exists(clean_path):
         with open(clean_path, "rb") as img_file:
             encoded = base64.b64encode(img_file.read()).decode()
@@ -64,19 +70,18 @@ with st.sidebar:
     list_menu = ["Home", "Database Alumni", "Berita & Kalender Kegiatan", 
                  "In Memoriam Alumni Sempat 86", "Komunitas", "Networking", "Donasi", "Admin Panel"]
     
+    # Pastikan index selalu valid
+    current_idx = 0
     if st.session_state.menu_aktif in list_menu:
-        idx = list_menu.index(st.session_state.menu_aktif)
-    else:
-        idx = 0
+        current_idx = list_menu.index(st.session_state.menu_aktif)
         
-    menu_pilihan = st.radio("Pilih Halaman:", list_menu, index=idx)
+    menu_pilihan = st.radio("Pilih Halaman:", list_menu, index=current_idx)
     if menu_pilihan != st.session_state.menu_aktif:
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
 
 # --- 7. LOGIKA HALAMAN ---
 
-# --- A. HALAMAN HOME ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div class="main-header"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
@@ -91,7 +96,7 @@ if st.session_state.menu_aktif == "Home":
 
     st.write("---")
 
-    # 1. Slideshow Foto Event Dinamis Berdasarkan Filter
+    # 1. Slideshow Dokumentasi
     st.subheader("📸 Dokumentasi Kegiatan")
     conn = sqlite3.connect('alumni.db')
     df_list_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events WHERE deskripsi != ''", conn)
@@ -129,30 +134,31 @@ if st.session_state.menu_aktif == "Home":
             """
             components.html(html_code, height=410)
             st.markdown(f"<div style='text-align: center; margin-top: -10px;'><strong>📍 Event: {pilihan_event}</strong></div>", unsafe_allow_html=True)
+        else:
+            st.warning("Foto tidak dapat dimuat. Pastikan folder static sudah diunggah ke GitHub.")
     else:
         st.info("Belum ada foto dokumentasi.")
     conn.close()
 
     st.write("---")
 
-    # 2. Agenda Kegiatan (DENGAN LOGIKA URUT TANGGAL)
+    # 2. Agenda Kegiatan (Urut Tanggal)
     st.subheader("🗓️ Agenda Kegiatan Mendatang")
     conn = sqlite3.connect('alumni.db')
     df_agenda = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi, status FROM data_agenda", conn)
     conn.close()
     
     if not df_agenda.empty:
-        # LOGIKA SORTING TANGGAL:
-        # 1. Ubah string tanggal ke format datetime agar bisa diurutkan
         df_agenda['tanggal_dt'] = pd.to_datetime(df_agenda['tanggal'], format='%d %B %Y')
-        # 2. Urutkan berdasarkan tanggal terdekat (Ascending)
         df_agenda = df_agenda.sort_values(by='tanggal_dt', ascending=True)
-        # 3. Buat tampilan tabel tanpa kolom pembantu 'tanggal_dt'
         st.table(df_agenda[['tanggal', 'kegiatan', 'lokasi', 'status']])
     else:
         st.info("Belum ada agenda kegiatan.")
 
-# --- B. HALAMAN ADMIN PANEL ---
+elif st.session_state.menu_aktif == "Database Alumni":
+    st.title("🔍 Database Alumni")
+    st.info("Halaman ini sedang dalam pengembangan.")
+
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel - Data Entry")
     tab1, tab2 = st.tabs(["📸 Upload Foto Event", "🗓️ Input Agenda"])
@@ -172,7 +178,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
                         f.write(f_upload.getbuffer())
                     c.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (path_simpan, deskripsi))
                 conn.commit(); conn.close()
-                st.success("Foto berhasil ditambahkan!"); st.rerun()
+                st.success("Foto berhasil disimpan!"); st.rerun()
 
     with tab2:
         st.subheader("Tambah Agenda Baru")
@@ -184,13 +190,11 @@ elif st.session_state.menu_aktif == "Admin Panel":
             if st.form_submit_button("Simpan Agenda") and keg:
                 conn = sqlite3.connect('alumni.db')
                 c = conn.cursor()
-                # Simpan dengan format standar: Tanggal NamaBulan Tahun
                 c.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi, status) VALUES (?,?,?,?)", 
                           (tgl.strftime("%d %B %Y"), keg, lok, stat))
                 conn.commit(); conn.close()
                 st.success("Agenda berhasil disimpan!"); st.rerun()
 
-# --- C. HALAMAN DATABASE (Placeholder) ---
-elif st.session_state.menu_aktif == "Database Alumni":
-    st.title("🔍 Database Alumni")
-    st.info("Tampilkan data alumni di sini...")
+else:
+    st.title(f"📂 {st.session_state.menu_aktif}")
+    st.info("Halaman ini akan segera hadir.")
