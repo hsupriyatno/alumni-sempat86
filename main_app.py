@@ -6,6 +6,7 @@ import base64
 import streamlit.components.v1 as components
 from datetime import datetime
 
+
 # --- 1. SETUP FOLDER & DATABASE ---
 for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']:
     if not os.path.exists(folder): os.makedirs(folder)
