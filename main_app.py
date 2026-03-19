@@ -68,9 +68,24 @@ with st.sidebar:
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
 
-# --- 6. LOGIKA HALAMAN HOME (GANTI TOTAL BAGIAN INI) ---
+# --- 6. LOGIKA HALAMAN HOME (VERSI LENGKAP) ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background: #2b5298; padding: 30px; border-radius: 15px; color: white; text-align: center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
+    
+    # --- TOMBOL DAFTAR & MASUK (DI ATAS) ---
+    col_l1, col_l2 = st.columns([1, 1])
+    with col_l1:
+        if st.button("📝 DAFTAR ANGGOTA", use_container_width=True):
+            st.session_state.menu_aktif = "Database Alumni"
+            st.rerun()
+    with col_l2:
+        if 'nama_user' not in st.session_state:
+            if st.button("🔑 MASUK (LOGIN)", use_container_width=True):
+                st.session_state.menu_aktif = "Admin Panel"
+                st.rerun()
+        else:
+            st.success(f"Halo, {st.session_state.nama_user}!")
+
     st.write("---")
 
     # --- SLIDESHOW DOKUMENTASI ---
@@ -80,8 +95,6 @@ if st.session_state.menu_aktif == "Home":
     
     if not df_list_event.empty:
         pilihan_event = st.selectbox("Pilih Event untuk Dilihat:", df_list_event['deskripsi'])
-        
-        # Ambil data foto
         df_foto = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan_event,))
         list_foto = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
         
@@ -112,38 +125,26 @@ if st.session_state.menu_aktif == "Home":
             else:
                 st.image(list_foto[0], use_container_width=True, caption=f"📍 Event: {pilihan_event}")
             
-            # --- FITUR KOMENTAR ---
-# --- TAMPILAN KOMENTAR SEJAJAR (TANGGAL | NAMA | KOMENTAR) ---
+            # --- TAMPILAN KOMENTAR SEJAJAR ---
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
-            
-            # Ambil data komentar
             df_komen = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", 
                                         conn, params=(pilihan_event,))
             
             if not df_komen.empty:
-                # Membuat Header agar sejajar
+                # Header Kolom
                 h1, h2, h3 = st.columns([1, 1.5, 3])
-                h1.markdown("**Waktu**")
-                h2.markdown("**Nama**")
-                h3.markdown("**Komentar**")
-                st.write("---")
-
+                h1.caption("🕒 Waktu")
+                h2.caption("👤 Nama")
+                h3.caption("💬 Komentar")
+                
                 for _, row in df_komen.iterrows():
-                    # Membuat baris data yang sejajar
-                    col1, col2, col3 = st.columns([1, 1.5, 3])
-                    
-                    # Kolom 1: Waktu (Ukuran kecil/abu-abu)
-                    col1.markdown(f"<small style='color:gray;'>{row['waktu']}</small>", unsafe_allow_html=True)
-                    
-                    # Kolom 2: Nama
-                    col2.markdown(f"**{row['nama_penulis']}**")
-                    
-                    # Kolom 3: Isi Komentar
-                    col3.info(row['isi_komentar'])
-            else:
-                st.info("Belum ada komentar untuk event ini.")
+                    c1, c2, c3 = st.columns([1, 1.5, 3])
+                    c1.markdown(f"<small style='color:gray;'>{row['waktu']}</small>", unsafe_allow_html=True)
+                    c2.markdown(f"**{row['nama_penulis']}**")
+                    c3.info(row['isi_komentar'])
             
+            # Form Tambah Komentar
             with st.expander("➕ Tulis Komentar"):
                 with st.form(key=f"form_komen_{pilihan_event}", clear_on_submit=True):
                     nama_in = st.text_input("Nama Anda:", placeholder="Kosongkan untuk jadi Tamu")
@@ -159,16 +160,6 @@ if st.session_state.menu_aktif == "Home":
                                   (pilihan_event, nama_final, pesan_in, waktu_skrg))
                         conn.commit()
                         st.rerun()
-        else:
-            st.warning("Foto tidak ditemukan.")
-    else:
-        st.info("Belum ada foto dokumentasi.")
-    
-    st.write("---")
-    st.subheader("🗓️ Agenda Kegiatan Mendatang")
-    df_agenda = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi, status FROM data_agenda", conn)
-    if not df_agenda.empty:
-        st.table(df_agenda[['tanggal', 'kegiatan', 'lokasi', 'status']])
     conn.close()
 # --- AKHIR LOGIKA HOME ---
 
