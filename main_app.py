@@ -87,23 +87,33 @@ if st.session_state.menu_aktif == "Home":
         
         if list_foto:
             # Tampilkan Slideshow Jika foto > 1, jika cuma 1 tampilkan biasa
-            if len(list_foto) > 1:
-                html_slides = "".join([f'<div class="mySlides fade"><img src="{img}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for img in list_foto])
-                html_code = f"""
-                <div class="slideshow-container">{html_slides}</div>
-                <script>
-                    let slideIndex = 0;
-                    function showSlides() {{
-                        let slides = document.getElementsByClassName("mySlides");
-                        for (let i = 0; i < slides.length; i++) {{ slides[i].style.display = "none"; }}
-                        slideIndex++; if (slideIndex > slides.length) {{slideIndex = 1}}
-                        slides[slideIndex-1].style.display = "block";
-                        setTimeout(showSlides, 3000);
-                    }}
-                    showSlides();
-                </script>
-                """
-                components.html(html_code, height=460)
+# Pastikan bagian ini ada di dalam logic Halaman Home Bapak
+if len(list_foto) > 1:
+    html_slides = "".join([f'<div class="mySlides fade"><img src="{img}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for img in list_foto])
+    
+    html_code = f"""
+    <div class="slideshow-container">
+        {html_slides}
+    </div>
+    <script>
+        var slideIndex = 0;
+        function showSlides() {{
+            var i;
+            var slides = document.getElementsByClassName("mySlides");
+            for (i = 0; i < slides.length; i++) {{
+                slides[i].style.display = "none";  
+            }}
+            slideIndex++;
+            if (slideIndex > slides.length) {{slideIndex = 1}}    
+            if (slides[slideIndex-1]) {{
+                slides[slideIndex-1].style.display = "block";  
+            }}
+            setTimeout(showSlides, 3000); 
+        }}
+        showSlides();
+    </script>
+    """
+    components.html(html_code, height=460)
             else:
                 st.image(list_foto[0], use_container_width=True, caption=f"📍 Event: {pilihan_event}")
             
