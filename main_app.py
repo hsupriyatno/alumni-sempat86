@@ -120,20 +120,35 @@ if st.session_state.menu_aktif == "Home":
                 st.markdown(f"**{row['nama_penulis']}** <small>({row['waktu']})</small>", unsafe_allow_html=True)
                 st.info(row['isi_komentar'])
             
-            # Form Tambah Komentar
+# Form Tambah Komentar (Versi Otomatis Nama)
             with st.expander("➕ Tulis Komentar"):
                 with st.form(key=f"form_komen_{pilihan_event}", clear_on_submit=True):
-                    nama_km = st.text_input("Nama Bapak/Ibu:")
+                    # Cek apakah ada data nama di session_state (jika Bapak sudah buat fitur login)
+                    # Jika belum ada fitur login, kita gunakan input manual dengan default 'Tamu'
+                    if 'nama_user' in st.session_state:
+                        nama_display = st.session_state.nama_user
+                        st.write(f"Komentar sebagai: **{nama_display}**")
+                    else:
+                        nama_input = st.text_input("Nama Anda:", placeholder="Kosongkan jika ingin sebagai Tamu")
+                        nama_display = nama_input if nama_input else "Tamu"
+                    
                     pesan_km = st.text_area("Tulis sapaan atau komentar:")
                     submit_km = st.form_submit_button("Kirim Komentar 🚀")
                     
-                    if submit_km and nama_km and pesan_km:
+                    if submit_km and pesan_km:
                         c = conn.cursor()
                         waktu_sekarang = datetime.now().strftime("%d/%m/%y %H:%M")
+                        
+                        # Verifikasi apakah nama ada di database alumni
+                        check_nama = c.execute("SELECT nama FROM data_anggota WHERE nama = ?", (nama_display,)).fetchone()
+                        
+                        # Jika nama tidak ditemukan di database data_anggota, set sebagai Tamu
+                        final_nama = nama_display if check_nama else f"{nama_display} (Tamu)"
+                        
                         c.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
-                                  (pilihan_event, nama_km, pesan_km, waktu_sekarang))
+                                  (pilihan_event, final_nama, pesan_km, waktu_sekarang))
                         conn.commit()
-                        st.success("Komentar terkirim!")
+                        st.success(f"Komentar terkirim sebagai {final_nama}!")
                         st.rerun()
         else:
             st.warning("Foto tidak ditemukan.")
