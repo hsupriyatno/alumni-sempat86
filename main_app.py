@@ -40,13 +40,11 @@ def get_image_base64(path):
 # --- 2. NAVIGASI SIDEBAR & TEMA WARNA ---
 st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
 
-# Tambahan Background Biru Muda Lembut (Soft Blue Gradient)
 st.markdown("""
     <style>
     .stApp {
         background: linear-gradient(to bottom, #e3f2fd, #ffffff);
     }
-    /* Membuat sidebar tetap bersih */
     [data-testid="stSidebar"] {
         background-color: #f0f7ff;
     }
@@ -65,16 +63,17 @@ with st.sidebar:
     if st.button("🏠 Home", use_container_width=True): pindah("Home")
     if st.button("🔍 Database Alumni", use_container_width=True): pindah("Database Alumni")
     if st.button("🌹 In Memoriam", use_container_width=True): pindah("In Memoriam")
+    if st.button("🤝 Networking", use_container_width=True): pindah("Networking")
+    if st.button("💰 Donasi", use_container_width=True): pindah("Donasi")
     st.write("---")
     if st.button("⚙️ Admin Panel", use_container_width=True): pindah("Admin Panel")
 
 # --- 3. LOGIKA HALAMAN ---
 
-# --- A. HALAMAN HOME (POLESAN FINAL) ---
+# --- A. HALAMAN HOME ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;box-shadow: 2px 2px 10px rgba(0,0,0,0.1);"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # Teks Mutiara dengan gaya visual dari gambar banner
     st.markdown("""
         <div style="text-align:center; padding:30px 20px; font-family: 'Times New Roman', serif; background: rgba(255,255,255,0.4); border-radius:15px; margin-top:10px;">
             <p style="font-size:24px; color:#b8860b; font-style:italic; font-weight:bold; margin-bottom:10px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
@@ -130,7 +129,7 @@ if st.session_state.menu_aktif == "Home":
     if not df_ag.empty: st.table(df_ag)
     conn.close()
 
-# --- HALAMAN LAIN (TETAP SAMA) ---
+# --- B. DATABASE ALUMNI ---
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
     conn = sqlite3.connect('alumni.db')
@@ -140,6 +139,7 @@ elif st.session_state.menu_aktif == "Database Alumni":
         df_db['foto_profile'] = df_db['foto_profile'].apply(get_image_base64)
         st.data_editor(df_db, column_config={"foto_profile": st.column_config.ImageColumn("Foto")}, use_container_width=True, hide_index=True)
 
+# --- C. IN MEMORIAM ---
 elif st.session_state.menu_aktif == "In Memoriam":
     st.markdown('<div style="background:#424242;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>🌹 In Memoriam Sempat 86</h1></div>', unsafe_allow_html=True)
     st.write("")
@@ -157,10 +157,24 @@ elif st.session_state.menu_aktif == "In Memoriam":
                 st.write(row['keterangan'])
                 st.write("---")
 
+# --- D. NETWORKING (BARU - UNDER DEVELOPMENT) ---
+elif st.session_state.menu_aktif == "Networking":
+    st.title("🤝 Networking Alumni")
+    st.write("---")
+    st.warning("⚠️ Halaman ini dalam pengembangan.")
+    st.info("Rencana Fitur: Kolaborasi bisnis antar alumni, lowongan kerja, dan bursa keahlian rekan-rekan SEMPAT 86.")
+
+# --- E. DONASI (BARU - UNDER DEVELOPMENT) ---
+elif st.session_state.menu_aktif == "Donasi":
+    st.title("💰 Donasi Paguyuban")
+    st.write("---")
+    st.warning("⚠️ Halaman ini dalam pengembangan.")
+    st.info("Rencana Fitur: Transparansi uang kas, donasi sosial untuk rekan yang membutuhkan, dan iuran sukarela.")
+
+# --- F. ADMIN PANEL ---
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
     t1, t2, t3 = st.tabs(["📸 Dokumentasi", "🗓️ Agenda", "🌹 In Memoriam"])
-    # ... (Bagian Admin Panel tetap sama seperti sebelumnya)
     with t1:
         with st.form("up_doc", clear_on_submit=True):
             f = st.file_uploader("Upload Foto Dokumentasi", accept_multiple_files=True)
