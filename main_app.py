@@ -39,6 +39,23 @@ def get_image_base64(path):
 
 # --- 2. NAVIGASI SIDEBAR & TEMA WARNA ---
 st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
+# --- TARUH KODE INI DI BAWAH st.set_page_config ---
+
+def putar_musik():
+    audio_file = open('lagu_kenangan.mp3', 'rb') # Sesuaikan nama filenya
+    audio_bytes = audio_file.read()
+    audio_base64 = base64.b64encode(audio_bytes).decode()
+    
+    st.markdown(f"""
+        <audio autoplay="true" loop="true" style="display:none;">
+            <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+        </audio>
+        <div style="text-align:right; font-size:12px; color:#2b5298; font-weight:bold;">
+            🎵 Memutar Lagu Kenangan...
+        </div>
+    """, unsafe_allow_html=True)
+
+putar_musik()
 
 st.markdown("""
     <style>
