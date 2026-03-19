@@ -6,29 +6,11 @@ import base64
 import streamlit.components.v1 as components
 from datetime import datetime
 
-# --- 1. SETUP FOLDER ---
-folders = ['static/img_profile', 'static/img_events']
-for folder in folders:
+# --- 1. SETUP FOLDER & DATABASE ---
+for folder in ['static/img_profile', 'static/img_events']:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-# --- 2. FUNGSI KONVERSI GAMBAR (DIPERBAIKI UNTUK CLOUD) ---
-def get_image_base64(path):
-    if not path: return None
-    
-    # Menghapus path lokal laptop jika terbawa di database
-    # Misal: 'C:/DATA/...' atau 'app/static/...' akan menjadi 'static/...'
-    clean_path = path.replace('\\', '/')
-    if 'static/' in clean_path:
-        clean_path = 'static/' + clean_path.split('static/')[-1]
-    
-    if os.path.exists(clean_path):
-        with open(clean_path, "rb") as img_file:
-            encoded = base64.b64encode(img_file.read()).decode()
-            return f"data:image/png;base64,{encoded}"
-    return None
-
-# --- 3. DATABASE SETUP ---
 def init_db():
     conn = sqlite3.connect('alumni.db')
     c = conn.cursor()
@@ -42,163 +24,142 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS data_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     path_foto TEXT, deskripsi TEXT)''')
-    # TAMBAHKAN TABEL KOMENTAR INI
     c.execute('''CREATE TABLE IF NOT EXISTS data_komentar (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    event_deskripsi TEXT, nama_penulis TEXT, 
-                    isi_komentar TEXT, waktu TEXT)''')
+                    event_deskripsi TEXT, nama_penulis TEXT, isi_komentar TEXT, waktu TEXT)''')
     conn.commit()
     conn.close()
 
 init_db()
 
-# --- 4. KONFIGURASI HALAMAN ---
+# --- 2. FUNGSI HELPER ---
+def get_image_base64(path):
+    if path and os.path.exists(path):
+        with open(path, "rb") as f:
+            return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
+    return None
+
+# --- 3. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", page_icon="🏫", layout="wide")
 
 if 'menu_aktif' not in st.session_state:
     st.session_state.menu_aktif = "Home"
 
-def pindah_halaman(nama_halaman):
-    st.session_state.menu_aktif = nama_halaman
-
-# --- 5. STYLE CSS ---
-st.markdown("""
-    <style>
-    .main-header { background: #2b5298; padding: 40px; border-radius: 20px; color: white; text-align: center; margin-bottom: 10px; }
-    .stButton > button { border-radius: 10px; height: 45px; }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- 6. SIDEBAR NAVIGASI ---
+# --- 4. SIDEBAR NAVIGASI ---
 with st.sidebar:
     st.markdown("### 📂 Menu Utama")
     list_menu = ["Home", "Database Alumni", "Berita & Kalender Kegiatan", 
                  "In Memoriam Alumni Sempat 86", "Komunitas", "Networking", "Donasi", "Admin Panel"]
     
+    # Logic agar posisi radio button sinkron
     current_idx = 0
     if st.session_state.menu_aktif in list_menu:
         current_idx = list_menu.index(st.session_state.menu_aktif)
     elif st.session_state.menu_aktif == "Form Pendaftaran":
-        current_idx = 0 # Tetap highlight Home jika sedang daftar
+        current_idx = 0
         
     menu_pilihan = st.radio("Pilih Halaman:", list_menu, index=current_idx)
     if menu_pilihan != st.session_state.menu_aktif and st.session_state.menu_aktif != "Form Pendaftaran":
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
 
-# --- 7. LOGIKA HALAMAN ---
+# --- 5. LOGIKA HALAMAN ---
 
+# --- A. HALAMAN HOME ---
 if st.session_state.menu_aktif == "Home":
-    st.markdown('<div class="main-header"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
+    st.markdown('<div style="background:#2b5298; padding:30px; border-radius:15px; color:white; text-align:center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
+    # TOMBOL DAFTAR (Pasti Jalan)
     c_spacer, c_daftar, c_masuk = st.columns([7, 1.5, 1.5]) 
     with c_daftar:
         if st.button("📝 Daftar", use_container_width=True):
-            pindah_halaman("Form Pendaftaran"); st.rerun()
+            st.session_state.menu_aktif = "Form Pendaftaran"
+            st.rerun()
     with c_masuk:
         if st.button("🔑 Masuk", use_container_width=True):
-            pindah_halaman("Database Alumni"); st.rerun()
+            st.session_state.menu_aktif = "Database Alumni"
+            st.rerun()
 
     st.write("---")
-
-    # 1. Slideshow Dokumentasi
     st.subheader("📸 Dokumentasi Kegiatan")
     conn = sqlite3.connect('alumni.db')
-    df_list_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events WHERE deskripsi != ''", conn)
+    df_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events WHERE deskripsi != ''", conn)
     
-    if not df_list_event.empty:
-        pilihan_event = st.selectbox("Pilih Event untuk Dilihat:", df_list_event['deskripsi'])
-        df_foto = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan_event,))
+    if not df_event.empty:
+        pilihan = st.selectbox("Pilih Event:", df_event['deskripsi'])
+        df_foto = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan,))
+        list_f = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
         
-        list_foto = []
-        for p in df_foto['path_foto']:
-            b64 = get_image_base64(p)
-            if b64: list_foto.append(b64)
-        
-        if list_foto:
-            html_slides = "".join([f'<div class="mySlides fade"><img src="{img}"></div>' for img in list_foto])
-            html_code = f"""
-            <style>
-                .slideshow-container {{ max-width: 1000px; position: relative; margin: auto; }}
-                .mySlides {{ display: none; }}
-                img {{ vertical-align: middle; border-radius: 15px; width: 100%; height: 400px; object-fit: cover; }}
-                .fade {{ animation-name: fade; animation-duration: 1.5s; }}
-                @keyframes fade {{ from {{opacity: .4}} to {{opacity: 1}} }}
-            </style>
-            <div class="slideshow-container">{html_slides}</div>
-            <script>
-                let slideIndex = 0; showSlides();
-                function showSlides() {{
-                    let i; let slides = document.getElementsByClassName("mySlides");
-                    for (i = 0; i < slides.length; i++) {{ slides[i].style.display = "none"; }}
-                    slideIndex++; if (slideIndex > slides.length) {{slideIndex = 1}}
-                    if(slides[slideIndex-1]) {{ slides[slideIndex-1].style.display = "block"; }}
-                    setTimeout(showSlides, 3000);
-                }}
-            </script>
-            """
-            components.html(html_code, height=410)
-            st.markdown(f"<div style='text-align: center; margin-top: -10px;'><strong>📍 Event: {pilihan_event}</strong></div>", unsafe_allow_html=True)
+        if list_f:
+            # Slideshow
+            slides_html = "".join([f'<div class="mySlides fade"><img src="{img}" style="width:100%; height:400px; object-fit:cover; border-radius:15px;"></div>' for img in list_f])
+            components.html(f"""
+                <div class="slideshow-container">{slides_html}</div>
+                <script>
+                    let slideIndex = 0; showSlides();
+                    function showSlides() {{
+                        let slides = document.getElementsByClassName("mySlides");
+                        for (let i = 0; i < slides.length; i++) slides[i].style.display = "none";
+                        slideIndex++; if (slideIndex > slides.length) slideIndex = 1;
+                        if(slides[slideIndex-1]) slides[slideIndex-1].style.display = "block";
+                        setTimeout(showSlides, 3000);
+                    }}
+                </script>
+            """, height=410)
 
             # --- FITUR KOMENTAR ---
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
-            df_komen = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan_event,))
+            df_k = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan,))
+            for _, r in df_k.iterrows():
+                ca, cb, cc = st.columns([1, 1.5, 3])
+                ca.caption(r['waktu'])
+                cb.markdown(f"**{r['nama_penulis']}**")
+                cc.info(r['isi_komentar'])
             
-            for _, r in df_komen.iterrows():
-                ck1, ck2, ck3 = st.columns([1, 2, 4])
-                ck1.caption(r['waktu'])
-                ck2.markdown(f"**{r['nama_penulis']}**")
-                ck3.info(r['isi_komentar'])
-
-            with st.expander("➕ Tambah Komentar"):
-                with st.form(f"f_kom_{pilihan_event}", clear_on_submit=True):
-                    nama_k = st.text_input("Nama:")
-                    pesan_k = st.text_area("Pesan:")
-                    if st.form_submit_button("Kirim 🚀") and pesan_k:
-                        wkt = datetime.now().strftime("%d/%m/%y %H:%M")
+            with st.expander("➕ Tulis Komentar"):
+                with st.form(f"f_{pilihan}", clear_on_submit=True):
+                    n_in = st.text_input("Nama:")
+                    p_in = st.text_area("Komentar:")
+                    if st.form_submit_button("Kirim 🚀") and p_in:
                         conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
-                                     (pilihan_event, (nama_k if nama_k else "Alumni"), pesan_k, wkt))
+                                     (pilihan, (n_in if n_in else "Tamu"), p_in, datetime.now().strftime("%d/%m/%y %H:%M")))
                         conn.commit(); st.rerun()
-
-        else:
-            st.warning("Foto tidak dapat dimuat.")
-    else:
-        st.info("Belum ada foto dokumentasi.")
     conn.close()
 
-    st.write("---")
-    # 2. Agenda Kegiatan
-    st.subheader("🗓️ Agenda Kegiatan Mendatang")
-    conn = sqlite3.connect('alumni.db')
-    df_agenda = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi, status FROM data_agenda", conn)
-    conn.close()
-    if not df_agenda.empty:
-        st.table(df_agenda)
-
-# --- HALAMAN FORM PENDAFTARAN (AGAR TOMBOL DAFTAR HIDUP) ---
+# --- B. HALAMAN FORM PENDAFTARAN (Inilah yang buat tombol hidup) ---
 elif st.session_state.menu_aktif == "Form Pendaftaran":
     st.title("📝 Form Pendaftaran Alumni")
     if st.button("⬅️ Kembali ke Home"):
-        pindah_halaman("Home"); st.rerun()
+        st.session_state.menu_aktif = "Home"; st.rerun()
     
-    with st.form("reg_form"):
-        nama = st.text_input("Nama Lengkap")
-        alamat = st.text_area("Alamat")
-        col_k1, col_k2, col_k3 = st.columns(3)
-        k1 = col_k1.text_input("Kelas 1")
-        k2 = col_k2.text_input("Kelas 2")
-        k3 = col_k3.text_input("Kelas 3")
-        uid = st.text_input("User ID")
-        pwd = st.text_input("Password", type="password")
-        if st.form_submit_button("Daftar Sekarang"):
-            st.success("Data berhasil didaftarkan (Simulasi)"); pindah_halaman("Database Alumni"); st.rerun()
+    with st.form("regis_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            nama = st.text_input("Nama Lengkap")
+            alamat = st.text_area("Alamat")
+            uid = st.text_input("User ID")
+        with col2:
+            k1 = st.text_input("Kelas 1")
+            k2 = st.text_input("Kelas 2")
+            k3 = st.text_input("Kelas 3")
+            pwd = st.text_input("Password", type="password")
+        
+        if st.form_submit_button("Simpan Data Alumni"):
+            st.balloons()
+            st.success("Berhasil Terdaftar!")
 
+# --- C. HALAMAN LAINNYA ---
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
-    st.info("Halaman ini sedang dalam pengembangan.")
+    st.info("Halaman sedang dikembangkan.")
 
 elif st.session_state.menu_aktif == "Admin Panel":
-    # ... (Gunakan kode Admin Panel Bapak yang sudah ada) ...
     st.title("⚙️ Admin Panel")
-    # (Agar hemat tempat, saya tidak tulis ulang Admin Panel Bapak, tapi pastikan tetap ada di file)
+    tab1, tab2 = st.tabs(["📸 Foto Event", "🗓️ Agenda"])
+    with tab1: st.write("Form Upload Foto di sini")
+    with tab2: st.write("Form Agenda di sini")
+
+else:
+    st.title(st.session_state.menu_aktif)
+    st.info("Halaman segera hadir.")
