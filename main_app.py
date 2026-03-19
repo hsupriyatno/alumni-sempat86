@@ -68,7 +68,7 @@ with st.sidebar:
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
 
-# --- 6. LOGIKA HALAMAN HOME ---
+# --- 6. LOGIKA HALAMAN HOME (GANTI TOTAL BAGIAN INI) ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background: #2b5298; padding: 30px; border-radius: 15px; color: white; text-align: center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     st.write("---")
@@ -81,25 +81,18 @@ if st.session_state.menu_aktif == "Home":
     if not df_list_event.empty:
         pilihan_event = st.selectbox("Pilih Event untuk Dilihat:", df_list_event['deskripsi'])
         
-        # Ambil semua foto untuk event ini
+        # Ambil data foto
         df_foto = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan_event,))
         list_foto = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
         
         if list_foto:
-            # Tampilkan Slideshow Jika foto > 1, jika cuma 1 tampilkan biasa
-# Pastikan bagian ini ada di dalam logic Halaman Home Bapak
-# --- BAGIAN SLIDESHOW & KOMENTAR (VERSI FIX) ---
-        if list_foto:
-            # Slideshow Logic
             if len(list_foto) > 1:
                 html_slides = "".join([f'<div class="mySlides fade"><img src="{img}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for img in list_foto])
-                
                 html_code = f"""
                 <style>
                     .mySlides {{display: none;}}
-                    .slideshow-container {{max-width: 1000px; position: relative; margin: auto;}}
-                    .fade {{ animation: fade 1.5s; }}
-                    @keyframes fade {{ from {{opacity: .4}} to {{opacity: 1}} }}
+                    .fade {{ animation: fadeanim 1.5s; }}
+                    @keyframes fadeanim {{ from {{opacity: .4}} to {{opacity: 1}} }}
                 </style>
                 <div class="slideshow-container">{html_slides}</div>
                 <script>
@@ -119,52 +112,43 @@ if st.session_state.menu_aktif == "Home":
             else:
                 st.image(list_foto[0], use_container_width=True, caption=f"📍 Event: {pilihan_event}")
             
+            # --- FITUR KOMENTAR ---
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
-            
-            # Ambil data komentar dari database
             df_komen = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", 
                                         conn, params=(pilihan_event,))
             
-            for index, row in df_komen.iterrows():
+            for _, row in df_komen.iterrows():
                 st.markdown(f"**{row['nama_penulis']}** <small style='color:gray;'>({row['waktu']})</small>", unsafe_allow_html=True)
                 st.info(row['isi_komentar'])
             
-            # Form Input Komentar
             with st.expander("➕ Tulis Komentar"):
                 with st.form(key=f"form_komen_{pilihan_event}", clear_on_submit=True):
                     nama_in = st.text_input("Nama Anda:", placeholder="Kosongkan untuk jadi Tamu")
                     pesan_in = st.text_area("Tulis komentar:")
-                    if st.form_submit_button("Kirim Komentar 🚀"):
-                        if pesan_in:
-                            c = conn.cursor()
-                            waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
-                            # Cek nama di database anggota
-                            nama_final = nama_in if nama_in else "Tamu"
-                            check = c.execute("SELECT nama FROM data_anggota WHERE nama = ?", (nama_final,)).fetchone()
-                            if not check and nama_final != "Tamu":
-                                nama_final = f"{nama_final} (Tamu)"
-                                
-                            c.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
-                                      (pilihan_event, nama_final, pesan_in, waktu_skrg))
-                            conn.commit()
-                            st.rerun()
+                    if st.form_submit_button("Kirim Komentar 🚀") and pesan_in:
+                        c = conn.cursor()
+                        waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
+                        nama_final = nama_in if nama_in else "Tamu"
+                        check = c.execute("SELECT nama FROM data_anggota WHERE nama = ?", (nama_final,)).fetchone()
+                        if not check and nama_final != "Tamu":
+                            nama_final = f"{nama_final} (Tamu)"
+                        c.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
+                                  (pilihan_event, nama_final, pesan_in, waktu_skrg))
+                        conn.commit()
+                        st.rerun()
         else:
-            st.warning("Foto tidak ditemukan di folder static.")
+            st.warning("Foto tidak ditemukan.")
     else:
         st.info("Belum ada foto dokumentasi.")
-    conn.close()
-
+    
     st.write("---")
-    # Agenda (Urut Tanggal)
     st.subheader("🗓️ Agenda Kegiatan Mendatang")
-    conn = sqlite3.connect('alumni.db')
     df_agenda = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi, status FROM data_agenda", conn)
     if not df_agenda.empty:
-        df_agenda['tanggal_dt'] = pd.to_datetime(df_agenda['tanggal'], format='%d %B %Y', errors='coerce')
-        df_agenda = df_agenda.sort_values(by='tanggal_dt', ascending=True)
         st.table(df_agenda[['tanggal', 'kegiatan', 'lokasi', 'status']])
     conn.close()
+# --- AKHIR LOGIKA HOME ---
 
 # --- 7. ADMIN PANEL (UNTUK UPLOAD) ---
 elif st.session_state.menu_aktif == "Admin Panel":
