@@ -21,6 +21,12 @@ def get_image_base64(path):
     return None
 
 def init_db():
+    conn.execute('''CREATE TABLE IF NOT EXISTS data_komentar 
+                (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                 event_deskripsi TEXT, 
+                 nama_penulis TEXT, 
+                 isi_komentar TEXT, 
+                 waktu TEXT)''')
     conn = sqlite3.connect('alumni.db')
     conn.execute('''CREATE TABLE IF NOT EXISTS data_anggota 
                     (foto TEXT, nama TEXT, alamat TEXT, k1 TEXT, k2 TEXT, k3 TEXT, user_id TEXT PRIMARY KEY, password TEXT)''')
@@ -96,7 +102,51 @@ if st.session_state.menu_aktif == "Home":
                     }}
                 </script>
             """, height=410)
-
+# --- FITUR KOMENTAR ALUMNI ---
+            st.write("---")
+            st.markdown("### 💬 Komentar Alumni")
+            
+            # 1. Ambil data komentar dari database berdasarkan event yang dipilih
+            df_komen = pd.read_sql_query("""
+                SELECT nama_penulis, isi_komentar, waktu 
+                FROM data_komentar 
+                WHERE event_deskripsi = ? 
+                ORDER BY id DESC
+            """, conn, params=(pilihan,))
+            
+            # 2. Tampilkan daftar komentar jika ada
+            if not df_komen.empty:
+                for _, row in df_komen.iterrows():
+                    c_waktu, c_nama, c_isi = st.columns([1, 1.5, 3])
+                    c_waktu.caption(f"🕒 {row['waktu']}")
+                    c_nama.markdown(f"**{row['nama_penulis']}**")
+                    c_isi.info(row['isi_komentar'])
+            else:
+                st.write(" *Belum ada komentar untuk event ini. Jadilah yang pertama!* 😊")
+            
+            # 3. Form untuk menulis komentar baru
+            with st.expander("➕ Tulis Komentar"):
+                # Form menggunakan key unik berdasarkan nama event agar tidak tertukar
+                with st.form(key=f"form_komen_{pilihan}", clear_on_submit=True):
+                    nama_input = st.text_input("Nama Bapak/Ibu:")
+                    pesan_input = st.text_area("Tulis komentar atau sapaan:")
+                    
+                    if st.form_submit_button("Kirim Komentar 🚀"):
+                        if pesan_input:
+                            waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
+                            nama_final = nama_input if nama_input else "Tamu"
+                            
+                            # Simpan ke Database
+                            conn.execute("""
+                                INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) 
+                                VALUES (?,?,?,?)
+                            """, (pilihan, nama_final, pesan_input, waktu_skrg))
+                            conn.commit()
+                            
+                            st.success("Komentar terkirim!")
+                            st.rerun() # Refresh agar komentar langsung muncul
+                        else:
+                            st.warning("Mohon isi komentar terlebih dahulu.")
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
             df_k = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan,))
