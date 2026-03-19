@@ -70,11 +70,11 @@ if st.session_state.menu_aktif == "Home":
     
     c_spacer, c_daftar, c_masuk = st.columns([7, 1.5, 1.5]) 
     with c_daftar:
-        if st.button("📝 Daftar", use_container_width=True):
+        if st.button("📝 Daftar", key="btn_daftar_home", use_container_width=True):
             st.session_state.menu_aktif = "Form Pendaftaran"
             st.rerun()
     with c_masuk:
-        if st.button("🔑 Masuk", use_container_width=True):
+        if st.button("🔑 Masuk", key="btn_masuk_home", use_container_width=True):
             st.session_state.menu_aktif = "Database Alumni"
             st.rerun()
 
@@ -127,18 +127,17 @@ if st.session_state.menu_aktif == "Home":
 elif st.session_state.menu_aktif == "Form Pendaftaran":
     st.title("📝 Form Pendaftaran Alumni")
     if st.button("⬅️ Kembali ke Home"):
-        st.session_state.menu_aktif = "Home"; st.rerun()
+        st.session_state.menu_aktif = "Home"
+        st.rerun()
     
-    with st.form("regis_form"):
+    with st.form("regis_form_baru"):
         col1, col2 = st.columns(2)
         with col1:
             nama = st.text_input("Nama Lengkap")
             alamat = st.text_area("Alamat")
-            # FITUR FOTO PROFIL
             foto_prof = st.file_uploader("Upload Foto Profile", type=['jpg','png','jpeg'])
             uid = st.text_input("User ID")
         with col2:
-            # FITUR KELAS 1, 2, 3
             k1 = st.text_input("Kelas 1 (contoh: 1A)")
             k2 = st.text_input("Kelas 2")
             k3 = st.text_input("Kelas 3")
@@ -147,7 +146,7 @@ elif st.session_state.menu_aktif == "Form Pendaftaran":
         if st.form_submit_button("Simpan Data Alumni"):
             if nama and uid:
                 st.balloons()
-                st.success(f"Selamat {nama}, pendaftaran Anda berhasil!")
+                st.success(f"Selamat {nama}, pendaftaran berhasil!")
             else:
                 st.warning("Mohon isi Nama dan User ID.")
 
