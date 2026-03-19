@@ -37,8 +37,21 @@ def get_image_base64(path):
             return f"data:image/png;base64,{base64.b64encode(img_file.read()).decode()}"
     except: return None
 
-# --- 2. NAVIGASI SIDEBAR ---
+# --- 2. NAVIGASI SIDEBAR & TEMA WARNA ---
 st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
+
+# Tambahan Background Biru Muda Lembut (Soft Blue Gradient)
+st.markdown("""
+    <style>
+    .stApp {
+        background: linear-gradient(to bottom, #e3f2fd, #ffffff);
+    }
+    /* Membuat sidebar tetap bersih */
+    [data-testid="stSidebar"] {
+        background-color: #f0f7ff;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 if 'menu_aktif' not in st.session_state:
     st.session_state.menu_aktif = "Home"
@@ -57,21 +70,20 @@ with st.sidebar:
 
 # --- 3. LOGIKA HALAMAN ---
 
-# --- A. HALAMAN HOME (DENGAN POLESAN TEKS MUTIARA) ---
+# --- A. HALAMAN HOME (POLESAN FINAL) ---
 if st.session_state.menu_aktif == "Home":
-    # Header Utama
-    st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
+    st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;box-shadow: 2px 2px 10px rgba(0,0,0,0.1);"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # --- POLESAN TEKS MUTIARA (SESUAI GAMBAR) ---
+    # Teks Mutiara dengan gaya visual dari gambar banner
     st.markdown("""
-        <div style="text-align:center; padding:20px; font-family: 'Times New Roman', serif;">
-            <p style="font-size:22px; color:#f1c40f; font-style:italic; margin-bottom:5px;">
+        <div style="text-align:center; padding:30px 20px; font-family: 'Times New Roman', serif; background: rgba(255,255,255,0.4); border-radius:15px; margin-top:10px;">
+            <p style="font-size:24px; color:#b8860b; font-style:italic; font-weight:bold; margin-bottom:10px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
                 "Menyambung Kisah, Mempererat Persaudaraan. Jarak boleh membentang, waktu boleh berlalu, namun ikatan kita tetap satu."
             </p>
-            <p style="font-size:18px; color:#ffffff; line-height:1.6; max-width:800px; margin:auto;">
+            <p style="font-size:18px; color:#333333; line-height:1.8; max-width:850px; margin:auto; font-weight: 500;">
                 Mari jadikan kenangan masa sekolah sebagai energi untuk terus bergerak, berdampak, dan berkarya di bidang masing-masing. Karena sebaik-baiknya alumni adalah yang kehadirannya memberi manfaat bagi sesama.
             </p>
-            <h2 style="color:#f1c40f; font-style:italic; margin-top:15px;">
+            <h2 style="color:#b8860b; font-style:italic; margin-top:20px; font-weight:bold;">
                 Satu almamater, sejuta karya, selamanya saudara
             </h2>
         </div>
@@ -118,7 +130,7 @@ if st.session_state.menu_aktif == "Home":
     if not df_ag.empty: st.table(df_ag)
     conn.close()
 
-# --- BAGIAN LAIN TETAP SAMA (TIDAK BERUBAH) ---
+# --- HALAMAN LAIN (TETAP SAMA) ---
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
     conn = sqlite3.connect('alumni.db')
@@ -148,6 +160,7 @@ elif st.session_state.menu_aktif == "In Memoriam":
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
     t1, t2, t3 = st.tabs(["📸 Dokumentasi", "🗓️ Agenda", "🌹 In Memoriam"])
+    # ... (Bagian Admin Panel tetap sama seperti sebelumnya)
     with t1:
         with st.form("up_doc", clear_on_submit=True):
             f = st.file_uploader("Upload Foto Dokumentasi", accept_multiple_files=True)
