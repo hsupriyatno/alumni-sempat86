@@ -69,16 +69,20 @@ with st.sidebar:
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background-color:#1e478a; padding:20px; border-radius:10px; text-align:center;"><h1 style="color:white;">Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
+    # --- PERBAIKAN TOMBOL DAFTAR ---
     c1, c2, c3 = st.columns([7, 1.5, 1.5])
     with c2:
-        if st.button("📝 Daftar", use_container_width=True):
-            st.session_state.menu_aktif = "Form Pendaftaran"; st.rerun()
+        if st.button("📝 Daftar", key="btn_daftar_home", use_container_width=True):
+            st.session_state.menu_aktif = "Form Pendaftaran"
+            st.rerun() # Memaksa aplikasi pindah ke form pendaftaran
     with c3:
-        if st.button("🔑 Masuk", use_container_width=True):
-            st.session_state.menu_aktif = "Database Alumni"; st.rerun()
+        if st.button("🔑 Masuk", key="btn_masuk_home", use_container_width=True):
+            st.session_state.menu_aktif = "Database Alumni"
+            st.rerun()
 
     st.write("---")
     st.subheader("📸 Dokumentasi Kegiatan")
+    
     conn = sqlite3.connect('alumni.db')
     df_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events WHERE deskripsi != ''", conn)
     
@@ -88,6 +92,7 @@ if st.session_state.menu_aktif == "Home":
         list_f = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
         
         if list_f:
+            # Slideshow Utama
             slides_html = "".join([f'<div class="mySlides fade"><img src="{img}" style="width:100%; height:400px; object-fit:cover; border-radius:15px;"></div>' for img in list_f])
             components.html(f"""
                 <div class="slideshow-container">{slides_html}</div>
@@ -102,54 +107,19 @@ if st.session_state.menu_aktif == "Home":
                     }}
                 </script>
             """, height=410)
-# --- FITUR KOMENTAR ALUMNI ---
+
+            # --- FITUR KOMENTAR (DIPASANG DI SINI) ---
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
             
-            # 1. Ambil data komentar dari database berdasarkan event yang dipilih
-            df_komen = pd.read_sql_query("""
+            # Ambil komentar dari database
+            df_k = pd.read_sql_query("""
                 SELECT nama_penulis, isi_komentar, waktu 
                 FROM data_komentar 
                 WHERE event_deskripsi = ? 
                 ORDER BY id DESC
             """, conn, params=(pilihan,))
             
-            # 2. Tampilkan daftar komentar jika ada
-            if not df_komen.empty:
-                for _, row in df_komen.iterrows():
-                    c_waktu, c_nama, c_isi = st.columns([1, 1.5, 3])
-                    c_waktu.caption(f"🕒 {row['waktu']}")
-                    c_nama.markdown(f"**{row['nama_penulis']}**")
-                    c_isi.info(row['isi_komentar'])
-            else:
-                st.write(" *Belum ada komentar untuk event ini. Jadilah yang pertama!* 😊")
-            
-            # 3. Form untuk menulis komentar baru
-            with st.expander("➕ Tulis Komentar"):
-                # Form menggunakan key unik berdasarkan nama event agar tidak tertukar
-                with st.form(key=f"form_komen_{pilihan}", clear_on_submit=True):
-                    nama_input = st.text_input("Nama Bapak/Ibu:")
-                    pesan_input = st.text_area("Tulis komentar atau sapaan:")
-                    
-                    if st.form_submit_button("Kirim Komentar 🚀"):
-                        if pesan_input:
-                            waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
-                            nama_final = nama_input if nama_input else "Tamu"
-                            
-                            # Simpan ke Database
-                            conn.execute("""
-                                INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) 
-                                VALUES (?,?,?,?)
-                            """, (pilihan, nama_final, pesan_input, waktu_skrg))
-                            conn.commit()
-                            
-                            st.success("Komentar terkirim!")
-                            st.rerun() # Refresh agar komentar langsung muncul
-                        else:
-                            st.warning("Mohon isi komentar terlebih dahulu.")
-            st.write("---")
-            st.markdown("### 💬 Komentar Alumni")
-            df_k = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan,))
             for _, r in df_k.iterrows():
                 col_a, col_b, col_c = st.columns([1, 1.5, 3])
                 col_a.caption(r['waktu'])
@@ -157,21 +127,20 @@ if st.session_state.menu_aktif == "Home":
                 col_c.info(r['isi_komentar'])
             
             with st.expander("➕ Tulis Komentar"):
-                with st.form(f"f_{pilihan}", clear_on_submit=True):
-                    n_in = st.text_input("Nama:")
-                    p_in = st.text_area("Komentar:")
-                    if st.form_submit_button("Kirim 🚀") and p_in:
-                        conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
-                                     (pilihan, (n_in if n_in else "Tamu"), p_in, datetime.now().strftime("%d/%m/%y %H:%M")))
-                        conn.commit(); st.rerun()
-
-    st.write("---")
-    st.subheader("🗓️ Agenda Kegiatan Mendatang")
-    df_agenda = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi, status FROM data_agenda", conn)
-    if not df_agenda.empty:
-        st.table(df_agenda)
+                with st.form(f"f_komen_{pilihan}", clear_on_submit=True):
+                    n_in = st.text_input("Nama Bapak/Ibu:")
+                    p_in = st.text_area("Tulis komentar atau sapaan:")
+                    if st.form_submit_button("Kirim Komentar 🚀"):
+                        if p_in:
+                            waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
+                            conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
+                                         (pilihan, (n_in if n_in else "Tamu"), p_in, waktu_skrg))
+                            conn.commit()
+                            st.success("Komentar terkirim!")
+                            st.rerun()
     else:
-        st.info("Belum ada agenda.")
+        st.info("Belum ada foto dokumentasi. Silakan upload melalui Admin Panel.")
+    
     conn.close()
 
 # B. FORM PENDAFTARAN LENGKAP
