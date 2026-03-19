@@ -84,15 +84,19 @@ with st.sidebar:
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div class="main-header"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # Tombol Akses Cepat
+# --- TOMBOL AKSES CEPAT (DIPERBAIKI) ---
     c_spacer, c_daftar, c_masuk = st.columns([7, 1.5, 1.5]) 
     with c_daftar:
+        # Kita arahkan ke "Database Alumni" karena biasanya form daftar ada di sana
         if st.button("📝 Daftar", use_container_width=True):
-            pindah_halaman("Form Pendaftaran"); st.rerun()
+            st.session_state.menu_aktif = "Database Alumni"
+            st.rerun()
+            
     with c_masuk:
+        # Kita arahkan ke "Admin Panel" untuk proses login
         if st.button("🔑 Masuk", use_container_width=True):
-            pindah_halaman("Database Alumni"); st.rerun()
-
+            st.session_state.menu_aktif = "Admin Panel"
+            st.rerun()
     st.write("---")
 
     # 1. Slideshow Dokumentasi
