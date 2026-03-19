@@ -157,19 +157,19 @@ elif st.session_state.menu_aktif == "In Memoriam":
                 st.write(row['keterangan'])
                 st.write("---")
 
-# --- D. NETWORKING (BARU - UNDER DEVELOPMENT) ---
+# --- D. NETWORKING (UPDATE NARASI UMKM) ---
 elif st.session_state.menu_aktif == "Networking":
     st.title("🤝 Networking Alumni")
     st.write("---")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("Rencana Fitur: Kolaborasi bisnis antar alumni, lowongan kerja, dan bursa keahlian rekan-rekan SEMPAT 86.")
+    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis dan pengembangan UMKM SEMPAT 86. Wadah khusus untuk mempromosikan produk dan jasa antar alumni agar ekonomi komunitas semakin kuat.")
 
-# --- E. DONASI (BARU - UNDER DEVELOPMENT) ---
+# --- E. DONASI (TETAP) ---
 elif st.session_state.menu_aktif == "Donasi":
     st.title("💰 Donasi Paguyuban")
     st.write("---")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("Rencana Fitur: Transparansi uang kas, donasi sosial untuk rekan yang membutuhkan, dan iuran sukarela.")
+    st.info("🎯 **Rencana Fitur:** Transparansi uang kas, donasi sosial untuk rekan yang membutuhkan, dan iuran sukarela.")
 
 # --- F. ADMIN PANEL ---
 elif st.session_state.menu_aktif == "Admin Panel":
