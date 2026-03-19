@@ -6,7 +6,7 @@ import base64
 import streamlit.components.v1 as components
 from datetime import datetime
 
-# --- 1. SETUP FOLDER & DATABASE (STANDAR BAKU) ---
+# --- 1. SETUP FOLDER & DATABASE (DIKUNCI) ---
 for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']:
     if not os.path.exists(folder): os.makedirs(folder)
 
@@ -20,7 +20,7 @@ def init_db():
                     id INTEGER PRIMARY KEY AUTOINCREMENT, path_foto TEXT, deskripsi TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS data_komentar (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, event_deskripsi TEXT, 
-                    nama_penulis TEXT, isi_komentar TEXT, waktu TEXT)''")
+                    nama_penulis TEXT, isi_komentar TEXT, waktu TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS data_agenda (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, kegiatan TEXT, lokasi TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS data_memoriam (
@@ -37,7 +37,7 @@ def get_image_base64(path):
             return f"data:image/png;base64,{base64.b64encode(img_file.read()).decode()}"
     except: return None
 
-# --- 2. KONFIGURASI NAVIGASI SIDEBAR ---
+# --- 2. NAVIGASI SIDEBAR ---
 st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
 
 if 'menu_aktif' not in st.session_state:
@@ -57,7 +57,7 @@ with st.sidebar:
 
 # --- 3. LOGIKA HALAMAN ---
 
-# --- A. HALAMAN HOME (DOKUMEN & AGENDA KUNCI) ---
+# --- A. HALAMAN HOME (DOKUMEN & AGENDA) ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
@@ -102,55 +102,81 @@ if st.session_state.menu_aktif == "Home":
     if not df_ag.empty: st.table(df_ag)
     conn.close()
 
-# --- B. DATABASE ALUMNI (KUNCI) ---
+# --- B. DATABASE ALUMNI (DIKUNCI) ---
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
     conn = sqlite3.connect('alumni.db')
-    df = pd.read_sql_query("SELECT foto_profile, nama, kelas_1, kelas_2, kelas_3, alamat FROM data_anggota", conn)
+    df_db = pd.read_sql_query("SELECT foto_profile, nama, kelas_1, kelas_2, kelas_3, alamat FROM data_anggota", conn)
     conn.close()
-    if not df.empty:
-        df['foto_profile'] = df['foto_profile'].apply(get_image_base64)
-        st.data_editor(df, column_config={"foto_profile": st.column_config.ImageColumn("Foto")}, use_container_width=True, hide_index=True)
+    if not df_db.empty:
+        df_db['foto_profile'] = df_db['foto_profile'].apply(get_image_base64)
+        st.data_editor(df_db, column_config={"foto_profile": st.column_config.ImageColumn("Foto")}, use_container_width=True, hide_index=True)
 
-# --- C. IN MEMORIAM & ADMIN PANEL ---
-# (Tetap ada di bawah sini mengikuti logika tab yang sudah kita buat tadi)
+# --- C. IN MEMORIAM ---
+elif st.session_state.menu_aktif == "In Memoriam":
+    st.title("🌹 In Memoriam Sempat 86")
+    conn = sqlite3.connect('alumni.db')
+    df_mem = pd.read_sql_query("SELECT * FROM data_memoriam", conn)
+    conn.close()
+    if not df_mem.empty:
+        cols = st.columns(3)
+        for i, row in df_mem.iterrows():
+            with cols[i % 3]:
+                img = get_image_base64(row['foto'])
+                if img: st.image(img, use_container_width=True)
+                st.subheader(row['nama'])
+                st.caption(f"Wafat: {row['tanggal_wafat']}")
+                st.write(row['keterangan'])
+                st.write("---")
+
+# --- D. ADMIN PANEL (FOTO DOKUMEN & MEMORIAM) ---
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
     t1, t2, t3 = st.tabs(["📸 Dokumentasi", "🗓️ Agenda", "🌹 In Memoriam"])
-    # ... (isi form tab 1, 2, 3 tetap ada di sini) ...
+    
     with t1:
-        with st.form("up_doc"):
-            f = st.file_uploader("Upload Foto", accept_multiple_files=True)
+        with st.form("up_doc", clear_on_submit=True):
+            f = st.file_uploader("Upload Foto Dokumentasi", accept_multiple_files=True)
             e = st.text_input("Nama Event")
-            if st.form_submit_button("Simpan") and f and e:
+            if st.form_submit_button("Simpan Dokumentasi") and f and e:
                 conn = sqlite3.connect('alumni.db')
                 for pic in f:
-                    path = f"static/img_events/{pic.name}"
-                    with open(path, "wb") as save: save.write(pic.getbuffer())
-                    conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (path, e))
-                conn.commit(); conn.close(); st.success("Ok!"); st.rerun()
+                    p = f"static/img_events/{pic.name}"
+                    with open(p, "wb") as save: save.write(pic.getbuffer())
+                    conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (p, e))
+                conn.commit(); conn.close(); st.success("Dokumentasi Berhasil Disimpan!"); st.rerun()
 
-elif st.session_state.menu_aktif == "In Memoriam":
-    st.title("🌹 In Memoriam")
-    conn = sqlite3.connect('alumni.db')
-    df_m = pd.read_sql_query("SELECT * FROM data_memoriam", conn)
-    conn.close()
-    if not df_m.empty:
-        c = st.columns(3)
-        for i, r in df_m.iterrows():
-            with c[i%3]:
-                im = get_image_base64(r['foto'])
-                if im: st.image(im)
-                st.subheader(r['nama'])
-                st.caption(r['tanggal_wafat'])
+    with t2:
+        with st.form("up_age", clear_on_submit=True):
+            tgl = st.date_input("Tanggal").strftime("%d-%m-%Y")
+            keg = st.text_input("Kegiatan")
+            lok = st.text_input("Lokasi")
+            if st.form_submit_button("Simpan Agenda"):
+                conn = sqlite3.connect('alumni.db')
+                conn.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi) VALUES (?,?,?)", (tgl, keg, lok))
+                conn.commit(); conn.close(); st.success("Agenda Disimpan!")
+
+    with t3:
+        with st.form("up_mem", clear_on_submit=True):
+            m_nama = st.text_input("Nama Rekan")
+            m_tgl = st.text_input("Tanggal Wafat")
+            m_ket = st.text_area("Keterangan")
+            m_foto = st.file_uploader("Upload Foto", type=['jpg','png','jpeg'])
+            if st.form_submit_button("Simpan In Memoriam"):
+                if m_nama and m_foto:
+                    p = f"static/img_memoriam/{m_foto.name}"
+                    with open(p, "wb") as save: save.write(m_foto.getbuffer())
+                    conn = sqlite3.connect('alumni.db')
+                    conn.execute("INSERT INTO data_memoriam (foto, nama, tanggal_wafat, keterangan) VALUES (?,?,?,?)", (p, m_nama, m_tgl, m_ket))
+                    conn.commit(); conn.close(); st.success("Data In Memoriam Disimpan!")
 
 elif st.session_state.menu_aktif == "Form Pendaftaran":
-    st.title("📝 Pendaftaran")
+    st.title("📝 Form Pendaftaran")
     with st.form("reg"):
         n = st.text_input("Nama")
-        u = st.text_input("ID")
+        u = st.text_input("User ID")
         p = st.text_input("Password", type="password")
         if st.form_submit_button("Daftar"):
             conn = sqlite3.connect('alumni.db')
             conn.execute("INSERT INTO data_anggota (nama, user_id, password) VALUES (?,?,?)", (n, u, p))
-            conn.commit(); conn.close(); pindah("Home")
+            conn.commit(); conn.close(); st.success("Berhasil!"); pindah("Home")
