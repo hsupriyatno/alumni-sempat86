@@ -32,16 +32,13 @@ def get_image_base64(path):
 def init_db():
     conn = sqlite3.connect('alumni.db')
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS data_anggota (
-                    foto_profile TEXT, nama TEXT, alamat TEXT, 
-                    kelas_1 TEXT, kelas_2 TEXT, kelas_3 TEXT, 
-                    user_id TEXT PRIMARY KEY, password TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS data_agenda (
+    # ... (kode tabel lainnya tetap ada)
+    c.execute('''CREATE TABLE IF NOT EXISTS data_komentar (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tanggal TEXT, kegiatan TEXT, lokasi TEXT, status TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS data_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    path_foto TEXT, deskripsi TEXT)''')
+                    event_deskripsi TEXT,
+                    nama_penulis TEXT,
+                    isi_komentar TEXT,
+                    waktu TEXT)''')
     conn.commit()
     conn.close()
 
@@ -96,46 +93,50 @@ if st.session_state.menu_aktif == "Home":
 
     st.write("---")
 
-    # 1. Slideshow Dokumentasi
+# --- BAGIAN SLIDESHOW & KOMENTAR (GANTI DI SINI) ---
     st.subheader("📸 Dokumentasi Kegiatan")
     conn = sqlite3.connect('alumni.db')
     df_list_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events WHERE deskripsi != ''", conn)
     
     if not df_list_event.empty:
         pilihan_event = st.selectbox("Pilih Event untuk Dilihat:", df_list_event['deskripsi'])
-        df_foto = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan_event,))
         
-        list_foto = []
-        for p in df_foto['path_foto']:
-            b64 = get_image_base64(p)
-            if b64: list_foto.append(b64)
+        # Tampilkan Foto (Slideshow)
+        df_foto = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan_event,))
+        list_foto = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
         
         if list_foto:
-            html_slides = "".join([f'<div class="mySlides fade"><img src="{img}"></div>' for img in list_foto])
-            html_code = f"""
-            <style>
-                .slideshow-container {{ max-width: 1000px; position: relative; margin: auto; }}
-                .mySlides {{ display: none; }}
-                img {{ vertical-align: middle; border-radius: 15px; width: 100%; height: 400px; object-fit: cover; }}
-                .fade {{ animation-name: fade; animation-duration: 1.5s; }}
-                @keyframes fade {{ from {{opacity: .4}} to {{opacity: 1}} }}
-            </style>
-            <div class="slideshow-container">{html_slides}</div>
-            <script>
-                let slideIndex = 0; showSlides();
-                function showSlides() {{
-                    let i; let slides = document.getElementsByClassName("mySlides");
-                    for (i = 0; i < slides.length; i++) {{ slides[i].style.display = "none"; }}
-                    slideIndex++; if (slideIndex > slides.length) {{slideIndex = 1}}
-                    slides[slideIndex-1].style.display = "block";
-                    setTimeout(showSlides, 3000);
-                }}
-            </script>
-            """
-            components.html(html_code, height=410)
-            st.markdown(f"<div style='text-align: center; margin-top: -10px;'><strong>📍 Event: {pilihan_event}</strong></div>", unsafe_allow_html=True)
+            # (Gunakan komponen HTML slideshow yang sudah Bapak punya di sini)
+            st.image(list_foto[0], use_container_width=True, caption=f"📍 Event: {pilihan_event}") # Contoh sederhana
+            
+            st.write("---")
+            st.markdown("### 💬 Komentar Alumni")
+            
+            # Tampilkan Komentar yang Sudah Ada
+            df_komen = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", 
+                                        conn, params=(pilihan_event,))
+            
+            for index, row in df_komen.iterrows():
+                st.markdown(f"**{row['nama_penulis']}** <small>({row['waktu']})</small>", unsafe_allow_html=True)
+                st.info(row['isi_komentar'])
+            
+            # Form Tambah Komentar
+            with st.expander("➕ Tulis Komentar"):
+                with st.form(key=f"form_komen_{pilihan_event}", clear_on_submit=True):
+                    nama_km = st.text_input("Nama Bapak/Ibu:")
+                    pesan_km = st.text_area("Tulis sapaan atau komentar:")
+                    submit_km = st.form_submit_button("Kirim Komentar 🚀")
+                    
+                    if submit_km and nama_km and pesan_km:
+                        c = conn.cursor()
+                        waktu_sekarang = datetime.now().strftime("%d/%m/%y %H:%M")
+                        c.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
+                                  (pilihan_event, nama_km, pesan_km, waktu_sekarang))
+                        conn.commit()
+                        st.success("Komentar terkirim!")
+                        st.rerun()
         else:
-            st.warning("Foto tidak dapat dimuat. Pastikan folder static sudah diunggah ke GitHub.")
+            st.warning("Foto tidak ditemukan.")
     else:
         st.info("Belum ada foto dokumentasi.")
     conn.close()
