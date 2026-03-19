@@ -88,67 +88,67 @@ if st.session_state.menu_aktif == "Home":
         if list_foto:
             # Tampilkan Slideshow Jika foto > 1, jika cuma 1 tampilkan biasa
 # Pastikan bagian ini ada di dalam logic Halaman Home Bapak
-if len(list_foto) > 1:
-    html_slides = "".join([f'<div class="mySlides fade"><img src="{img}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for img in list_foto])
-    
-    html_code = f"""
-    <div class="slideshow-container">
-        {html_slides}
-    </div>
-    <script>
-        var slideIndex = 0;
-        function showSlides() {{
-            var i;
-            var slides = document.getElementsByClassName("mySlides");
-            for (i = 0; i < slides.length; i++) {{
-                slides[i].style.display = "none";  
-            }}
-            slideIndex++;
-            if (slideIndex > slides.length) {{slideIndex = 1}}    
-            if (slides[slideIndex-1]) {{
-                slides[slideIndex-1].style.display = "block";  
-            }}
-            setTimeout(showSlides, 3000); 
-        }}
-        showSlides();
-    </script>
-    """
-    components.html(html_code, height=460)
+# --- BAGIAN SLIDESHOW & KOMENTAR (VERSI FIX) ---
+        if list_foto:
+            # Slideshow Logic
+            if len(list_foto) > 1:
+                html_slides = "".join([f'<div class="mySlides fade"><img src="{img}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for img in list_foto])
+                
+                html_code = f"""
+                <style>
+                    .mySlides {{display: none;}}
+                    .slideshow-container {{max-width: 1000px; position: relative; margin: auto;}}
+                    .fade {{ animation: fade 1.5s; }}
+                    @keyframes fade {{ from {{opacity: .4}} to {{opacity: 1}} }}
+                </style>
+                <div class="slideshow-container">{html_slides}</div>
+                <script>
+                    let slideIndex = 0;
+                    function showSlides() {{
+                        let slides = document.getElementsByClassName("mySlides");
+                        for (let i = 0; i < slides.length; i++) {{ slides[i].style.display = "none"; }}
+                        slideIndex++;
+                        if (slideIndex > slides.length) {{slideIndex = 1}}
+                        if (slides[slideIndex-1]) {{ slides[slideIndex-1].style.display = "block"; }}
+                        setTimeout(showSlides, 3000);
+                    }}
+                    showSlides();
+                </script>
+                """
+                components.html(html_code, height=460)
             else:
                 st.image(list_foto[0], use_container_width=True, caption=f"📍 Event: {pilihan_event}")
             
-            # --- FITUR KOMENTAR ---
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
             
-            # Tampilkan Daftar Komentar
+            # Ambil data komentar dari database
             df_komen = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", 
                                         conn, params=(pilihan_event,))
             
-            for _, row in df_komen.iterrows():
+            for index, row in df_komen.iterrows():
                 st.markdown(f"**{row['nama_penulis']}** <small style='color:gray;'>({row['waktu']})</small>", unsafe_allow_html=True)
                 st.info(row['isi_komentar'])
             
             # Form Input Komentar
             with st.expander("➕ Tulis Komentar"):
                 with st.form(key=f"form_komen_{pilihan_event}", clear_on_submit=True):
-                    nama_input = st.text_input("Nama Anda:", placeholder="Kosongkan jika ingin sebagai Tamu")
-                    pesan_km = st.text_area("Tulis sapaan atau komentar:")
-                    if st.form_submit_button("Kirim Komentar 🚀") and pesan_km:
-                        c = conn.cursor()
-                        waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
-                        
-                        # Cek apakah nama terdaftar di database alumni
-                        nama_final = nama_input if nama_input else "Tamu"
-                        check = c.execute("SELECT nama FROM data_anggota WHERE nama = ?", (nama_final,)).fetchone()
-                        if not check and nama_final != "Tamu":
-                            nama_final = f"{nama_final} (Tamu)"
-                            
-                        c.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
-                                  (pilihan_event, nama_final, pesan_km, waktu_skrg))
-                        conn.commit()
-                        st.success(f"Komentar terkirim sebagai {nama_final}!")
-                        st.rerun()
+                    nama_in = st.text_input("Nama Anda:", placeholder="Kosongkan untuk jadi Tamu")
+                    pesan_in = st.text_area("Tulis komentar:")
+                    if st.form_submit_button("Kirim Komentar 🚀"):
+                        if pesan_in:
+                            c = conn.cursor()
+                            waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
+                            # Cek nama di database anggota
+                            nama_final = nama_in if nama_in else "Tamu"
+                            check = c.execute("SELECT nama FROM data_anggota WHERE nama = ?", (nama_final,)).fetchone()
+                            if not check and nama_final != "Tamu":
+                                nama_final = f"{nama_final} (Tamu)"
+                                
+                            c.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
+                                      (pilihan_event, nama_final, pesan_in, waktu_skrg))
+                            conn.commit()
+                            st.rerun()
         else:
             st.warning("Foto tidak ditemukan di folder static.")
     else:
