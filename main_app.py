@@ -64,40 +64,74 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 6. SIDEBAR NAVIGASI ---
+# --- 6. SIDEBAR NAVIGASI (HIDDEN FORM) ---
 with st.sidebar:
     st.markdown("### 📂 Menu Utama")
+    # Form Pendaftaran TIDAK dimasukkan ke sini
     list_menu = ["Home", "Database Alumni", "Berita & Kalender Kegiatan", 
-                 "In Memoriam Alumni Sempat 86", "Komunitas", "Networking", "Donasi", "Admin Panel"]
+                 "In Memoriam Alumni Sempat 86", "Admin Panel"]
     
-    # Pastikan index selalu valid
+    # Logika navigasi tetap sama
     current_idx = 0
     if st.session_state.menu_aktif in list_menu:
         current_idx = list_menu.index(st.session_state.menu_aktif)
+    elif st.session_state.menu_aktif == "Form Pendaftaran":
+        current_idx = 0 # Default ke Home jika di sidebar
         
     menu_pilihan = st.radio("Pilih Halaman:", list_menu, index=current_idx)
-    if menu_pilihan != st.session_state.menu_aktif:
+    if menu_pilihan != st.session_state.menu_aktif and st.session_state.menu_aktif != "Form Pendaftaran":
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
 
 # --- 7. LOGIKA HALAMAN HOME (POSISI KOMENTAR DI BAWAH FOTO) ---
-if st.session_state.menu_aktif == "Home":
-    st.markdown('<div class="main-header"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
+elif st.session_state.menu_aktif == "Form Pendaftaran":
+    st.title("📝 Form Pendaftaran Alumni")
     
-# --- TOMBOL AKSES CEPAT (DIPERBAIKI) ---
-    c_spacer, c_daftar, c_masuk = st.columns([7, 1.5, 1.5]) 
-    with c_daftar:
-        # Kita arahkan ke "Database Alumni" karena biasanya form daftar ada di sana
-        if st.button("📝 Daftar", use_container_width=True):
-            st.session_state.menu_aktif = "Database Alumni"
-            st.rerun()
+    # Tombol Kembali ke Home
+    if st.button("⬅️ Kembali ke Home"):
+        st.session_state.menu_aktif = "Home"; st.rerun()
+
+    with st.form("form_regis", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            nama = st.text_input("Nama Lengkap:")
+            alamat = st.text_area("Alamat:")
+            user_id = st.text_input("ID / Username (Unik):")
+            password = st.text_input("Password:", type="password")
+        with col2:
+            k1 = st.text_input("Kelas 1 (Contoh: 1A):")
+            k2 = st.text_input("Kelas 2:")
+            k3 = st.text_input("Kelas 3:")
+            foto = st.file_uploader("Upload Foto Profile", type=['jpg','png','jpeg'])
             
-    with c_masuk:
-        # Kita arahkan ke "Admin Panel" untuk proses login
-        if st.button("🔑 Masuk", use_container_width=True):
-            st.session_state.menu_aktif = "Admin Panel"
-            st.rerun()
-    st.write("---")
+        if st.form_submit_button("Kirim Data Pendaftaran 🚀"):
+            if nama and user_id and password:
+                conn = sqlite3.connect('alumni.db')
+                # Logika simpan foto (seperti kode sebelumnya)
+                path_foto = ""
+                if foto:
+                    path_foto = os.path.join("static/img_profile", f"{user_id}_{foto.name}")
+                    with open(path_foto, "wb") as f: f.write(foto.getbuffer())
+                
+                try:
+                    conn.execute("INSERT INTO data_anggota VALUES (?,?,?,?,?,?,?,?)", 
+                                 (path_foto, nama, alamat, k1, k2, k3, user_id, password))
+                    conn.commit()
+                    conn.close()
+                    
+                    # EFEK BALON & PINDAH HALAMAN
+                    st.balloons()
+                    st.success(f"Selamat {nama}, pendaftaran berhasil!")
+                    
+                    # Delay sebentar biar balon kelihatan, lalu pindah
+                    import time
+                    time.sleep(2) 
+                    st.session_state.menu_aktif = "Database Alumni"
+                    st.rerun()
+                except:
+                    st.error("ID sudah ada. Gunakan ID lain.")
+            else:
+                st.warning("Mohon lengkapi Nama, ID, dan Password.")
 
     # 1. Slideshow Dokumentasi
     st.subheader("📸 Dokumentasi Kegiatan")
@@ -196,7 +230,15 @@ if st.session_state.menu_aktif == "Home":
 
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
-    st.info("Halaman ini sedang dalam pengembangan.")
+    conn = sqlite3.connect('alumni.db')
+    df = pd.read_sql_query("SELECT nama, kelas_1, kelas_2, kelas_3, alamat FROM data_anggota", conn)
+    conn.close()
+    
+    if not df.empty:
+        st.write(f"Total Alumni Terdaftar: {len(df)} orang")
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("Belum ada data alumni.")
 
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel - Data Entry")
