@@ -51,7 +51,6 @@ with st.sidebar:
     list_menu = ["Home", "Database Alumni", "Berita & Kalender Kegiatan", 
                  "In Memoriam Alumni Sempat 86", "Komunitas", "Networking", "Donasi", "Admin Panel"]
     
-    # Logic agar posisi radio button sinkron
     current_idx = 0
     if st.session_state.menu_aktif in list_menu:
         current_idx = list_menu.index(st.session_state.menu_aktif)
@@ -69,7 +68,6 @@ with st.sidebar:
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background:#2b5298; padding:30px; border-radius:15px; color:white; text-align:center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # TOMBOL DAFTAR (Pasti Jalan)
     c_spacer, c_daftar, c_masuk = st.columns([7, 1.5, 1.5]) 
     with c_daftar:
         if st.button("📝 Daftar", use_container_width=True):
@@ -91,7 +89,6 @@ if st.session_state.menu_aktif == "Home":
         list_f = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
         
         if list_f:
-            # Slideshow
             slides_html = "".join([f'<div class="mySlides fade"><img src="{img}" style="width:100%; height:400px; object-fit:cover; border-radius:15px;"></div>' for img in list_f])
             components.html(f"""
                 <div class="slideshow-container">{slides_html}</div>
@@ -107,7 +104,6 @@ if st.session_state.menu_aktif == "Home":
                 </script>
             """, height=410)
 
-            # --- FITUR KOMENTAR ---
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
             df_k = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan,))
@@ -127,7 +123,7 @@ if st.session_state.menu_aktif == "Home":
                         conn.commit(); st.rerun()
     conn.close()
 
-# --- B. HALAMAN FORM PENDAFTARAN (Inilah yang buat tombol hidup) ---
+# --- B. HALAMAN FORM PENDAFTARAN ---
 elif st.session_state.menu_aktif == "Form Pendaftaran":
     st.title("📝 Form Pendaftaran Alumni")
     if st.button("⬅️ Kembali ke Home"):
@@ -138,16 +134,22 @@ elif st.session_state.menu_aktif == "Form Pendaftaran":
         with col1:
             nama = st.text_input("Nama Lengkap")
             alamat = st.text_area("Alamat")
+            # FITUR FOTO PROFIL
+            foto_prof = st.file_uploader("Upload Foto Profile", type=['jpg','png','jpeg'])
             uid = st.text_input("User ID")
         with col2:
-            k1 = st.text_input("Kelas 1")
+            # FITUR KELAS 1, 2, 3
+            k1 = st.text_input("Kelas 1 (contoh: 1A)")
             k2 = st.text_input("Kelas 2")
             k3 = st.text_input("Kelas 3")
             pwd = st.text_input("Password", type="password")
         
         if st.form_submit_button("Simpan Data Alumni"):
-            st.balloons()
-            st.success("Berhasil Terdaftar!")
+            if nama and uid:
+                st.balloons()
+                st.success(f"Selamat {nama}, pendaftaran Anda berhasil!")
+            else:
+                st.warning("Mohon isi Nama dan User ID.")
 
 # --- C. HALAMAN LAINNYA ---
 elif st.session_state.menu_aktif == "Database Alumni":
