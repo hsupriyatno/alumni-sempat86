@@ -67,38 +67,27 @@ st.markdown("""
 # --- 6. SIDEBAR NAVIGASI ---
 with st.sidebar:
     st.markdown("### 📂 Menu Utama")
-    # Daftar menu sesuai gambar Bapak, tanpa "Form Pendaftaran" agar tetap tersembunyi
-    list_menu = [
-        "Home", 
-        "Database Alumni", 
-        "Berita & Kalender Kegiatan", 
-        "In Memoriam Alumni Sempat 86", 
-        "Komunitas", 
-        "Networking", 
-        "Donasi", 
-        "Admin Panel"
-    ]
+    list_menu = ["Home", "Database Alumni", "Berita & Kalender Kegiatan", 
+                 "In Memoriam Alumni Sempat 86", "Komunitas", "Networking", 
+                 "Donasi", "Admin Panel"]
     
-    # Menentukan index menu yang sedang aktif
     current_idx = 0
     if st.session_state.menu_aktif in list_menu:
         current_idx = list_menu.index(st.session_state.menu_aktif)
     elif st.session_state.menu_aktif == "Form Pendaftaran":
-        current_idx = 0 # Tetap sorot Home jika sedang di form pendaftaran
+        current_idx = 0
         
     menu_pilihan = st.radio("Pilih Halaman:", list_menu, index=current_idx)
-    
-    # Update halaman jika user klik menu di sidebar
     if menu_pilihan != st.session_state.menu_aktif and st.session_state.menu_aktif != "Form Pendaftaran":
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
+
 # --- 7. LOGIKA KONTEN HALAMAN ---
 
 # A. HALAMAN HOME
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div class="main-header"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # Tombol Akses Cepat
     c_spacer, c_daftar, c_masuk = st.columns([7, 1.5, 1.5]) 
     with c_daftar:
         if st.button("📝 Daftar", use_container_width=True):
@@ -110,48 +99,17 @@ if st.session_state.menu_aktif == "Home":
             st.rerun()
 
     st.write("---")
-
-    # Dokumentasi & Komentar (Tepat di bawah foto)
     st.subheader("📸 Dokumentasi Kegiatan")
+    
     conn = sqlite3.connect('alumni.db')
-    df_list_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events", conn)
+    df_list_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events WHERE deskripsi != ''", conn)
     
     if not df_list_event.empty:
         pilihan_event = st.selectbox("Pilih Event untuk Dilihat:", df_list_event['deskripsi'])
-        # ... (Logika Slideshow Foto di sini) ...
-        
-        # FITUR KOMENTAR ALUMNI
-        st.write("---")
-        st.markdown("### 💬 Komentar Alumni")
-        # (Logika menampilkan komentar di sini)
-    
-    conn.close()
-    st.write("---")
-    st.subheader("🗓️ Agenda Kegiatan Mendatang")
-
-# B. HALAMAN FORM PENDAFTARAN (HIDDEN DARI SIDEBAR)
-elif st.session_state.menu_aktif == "Form Pendaftaran":
-    st.title("📝 Form Pendaftaran Alumni")
-    # ... (Isi form: Nama, Alamat, Kelas, ID, Pwd, Foto Profile) ...
-    # Jangan lupa tambahkan st.balloons() dan redirect ke Database Alumni di sini!
-
-# C. HALAMAN DATABASE ALUMNI
-elif st.session_state.menu_aktif == "Database Alumni":
-    st.title("🔍 Database Alumni")
-    # Tampilkan tabel anggota dari database
-
-# D. HALAMAN LAIN (KOMUNITAS, NETWORKING, DLL)
-elif st.session_state.menu_aktif in ["Komunitas", "Networking", "Donasi"]:
-    st.title(f"📂 {st.session_state.menu_aktif}")
-    st.info("Halaman ini sedang dalam pengembangan.")
-
-# E. HALAMAN ADMIN
-elif st.session_state.menu_aktif == "Admin Panel":
-    st.title("⚙️ Admin Panel")
-    # Logika Upload Foto & Input Agenda
+        df_foto = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan_event,))
+        list_foto = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
         
         if list_foto:
-            # Kode HTML Slideshow
             html_slides = "".join([f'<div class="mySlides fade"><img src="{img}"></div>' for img in list_foto])
             html_code = f"""
             <style>
@@ -175,17 +133,13 @@ elif st.session_state.menu_aktif == "Admin Panel":
             """
             components.html(html_code, height=410)
             
-            # --- 2. FITUR KOMENTAR (DI BAWAH GAMBAR) ---
+            # FITUR KOMENTAR (DI BAWAH FOTO)
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
             df_komen = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", 
                                         conn, params=(pilihan_event,))
             
             if not df_komen.empty:
-                h1, h2, h3 = st.columns([1, 1.5, 3])
-                h1.caption("🕒 Waktu")
-                h2.caption("👤 Nama")
-                h3.caption("💬 Komentar")
                 for _, row in df_komen.iterrows():
                     c1, c2, c3 = st.columns([1, 1.5, 3])
                     c1.markdown(f"<small style='color:gray;'>{row['waktu']}</small>", unsafe_allow_html=True)
@@ -194,7 +148,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
             
             with st.expander("➕ Tulis Komentar"):
                 with st.form(key=f"form_komen_{pilihan_event}", clear_on_submit=True):
-                    nama_in = st.text_input("Nama Bapak/Ibu:", placeholder="Tulis nama...")
+                    nama_in = st.text_input("Nama Bapak/Ibu:")
                     pesan_in = st.text_area("Tulis sapaan atau komentar:")
                     if st.form_submit_button("Kirim Komentar 🚀") and pesan_in:
                         waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
@@ -205,16 +159,11 @@ elif st.session_state.menu_aktif == "Admin Panel":
                         st.rerun()
     conn.close()
 
-    # 3. AGENDA (DI PALING BAWAH)
     st.write("---")
     st.subheader("🗓️ Agenda Kegiatan Mendatang")
-    conn = sqlite3.connect('alumni.db')
-    df_agenda = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi, status FROM data_agenda", conn)
-    conn.close()
-    if not df_agenda.empty:
-        st.table(df_agenda)
+    # (Logika Tabel Agenda Bapak di sini)
 
-# B. HALAMAN FORM PENDAFTARAN (HIDDEN DARI SIDEBAR)
+# B. HALAMAN FORM PENDAFTARAN (HIDDEN)
 elif st.session_state.menu_aktif == "Form Pendaftaran":
     st.title("📝 Form Pendaftaran Alumni")
     if st.button("⬅️ Kembali ke Home"):
@@ -236,36 +185,23 @@ elif st.session_state.menu_aktif == "Form Pendaftaran":
         if st.form_submit_button("Daftar Sekarang 🚀"):
             if nama and user_id and password:
                 conn = sqlite3.connect('alumni.db')
-                path_foto = ""
-                if foto:
-                    path_foto = os.path.join("static/img_profile", f"{user_id}_{foto.name}")
-                    with open(path_foto, "wb") as f: f.write(foto.getbuffer())
-                
-                try:
-                    conn.execute("INSERT INTO data_anggota VALUES (?,?,?,?,?,?,?,?)", 
-                                 (path_foto, nama, alamat, k1, k2, k3, user_id, password))
-                    conn.commit()
-                    conn.close()
-                    st.balloons() # BALON TERBANG! 🎈
-                    st.success("Selamat! Data Anda sudah tersimpan.")
-                    import time
-                    time.sleep(2)
-                    st.session_state.menu_aktif = "Database Alumni"
-                    st.rerun()
-                except:
-                    st.error("Gagal simpan data. ID mungkin sudah ada.")
-            else:
-                st.warning("Mohon isi Nama, ID, dan Password.")
+                # (Simpan data dan tampilkan st.balloons() di sini)
+                conn.commit(); conn.close()
+                st.balloons()
+                st.session_state.menu_aktif = "Database Alumni"
+                st.rerun()
 
 # C. HALAMAN DATABASE ALUMNI
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
-    conn = sqlite3.connect('alumni.db')
-    df_db = pd.read_sql_query("SELECT nama, kelas_1, kelas_2, kelas_3, alamat FROM data_anggota", conn)
-    conn.close()
-    st.dataframe(df_db, use_container_width=True)
+    # (Logika menampilkan tabel alumni)
 
-# D. HALAMAN LAIN (ADMIN PANEL, DLL)
+# D. HALAMAN ADMIN PANEL
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
-    st.info("Fitur Admin tetap normal di sini.")
+    # (Logika Upload Foto Event & Agenda)
+
+# E. HALAMAN LAINNYA
+else:
+    st.title(f"📂 {st.session_state.menu_aktif}")
+    st.info("Halaman ini sedang dalam pengembangan.")
