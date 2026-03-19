@@ -6,7 +6,7 @@ import base64
 import streamlit.components.v1 as components
 from datetime import datetime
 
-# --- 1. SETUP FOLDER ---
+# --- 1. SETUP FOLDER (Memastikan folder foto ada) ---
 for folder in ['static/img_profile', 'static/img_events']:
     if not os.path.exists(folder):
         os.makedirs(folder)
@@ -21,14 +21,16 @@ def get_image_base64(path):
             return f"data:image/png;base64,{encoded}"
     return None
 
-# --- 3. DATABASE SETUP ---
+# --- 3. DATABASE SETUP (Membuat tabel jika belum ada) ---
 def init_db():
     conn = sqlite3.connect('alumni.db')
     c = conn.cursor()
+    # Tabel Anggota (Fondasi pagi Bapak)
     c.execute('''CREATE TABLE IF NOT EXISTS data_anggota (
                     foto_profile TEXT, nama TEXT, alamat TEXT, 
                     kelas_1 TEXT, kelas_2 TEXT, kelas_3 TEXT, 
                     user_id TEXT PRIMARY KEY, password TEXT)''')
+    # Tabel Fitur Dokumentasi & Komentar
     c.execute('''CREATE TABLE IF NOT EXISTS data_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     path_foto TEXT, deskripsi TEXT)''')
@@ -49,7 +51,7 @@ if 'menu_aktif' not in st.session_state:
 def pindah_halaman(nama_halaman):
     st.session_state.menu_aktif = nama_halaman
 
-# --- 5. STYLE CSS ---
+# --- 5. STYLE CSS (Banner Biru) ---
 st.markdown("""
     <style>
     .main-header { background: #2b5298; padding: 40px; border-radius: 20px; color: white; text-align: center; margin-bottom: 30px; }
@@ -73,26 +75,23 @@ with st.sidebar:
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
 
-# --- 7. LOGIKA HALAMAN ---
+# --- 7. LOGIKA HALAMAN (Kuncinya di Sini) ---
 
-# --- A. HALAMAN HOME ---
+# --- A. HALAMAN HOME (Ditambah Slideshow & Komentar) ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div class="main-header"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # Tombol Akses Cepat
     c_h1, c_h2 = st.columns(2)
     with c_h1:
         if st.button("🔍 Lihat Database Alumni", use_container_width=True):
-            pindah_halaman("Database Alumni")
-            st.rerun()
+            pindah_halaman("Database Alumni"); st.rerun()
     with c_h2:
         if st.button("📝 Daftar Anggota Baru", use_container_width=True):
-            pindah_halaman("Form Pendaftaran")
-            st.rerun()
+            pindah_halaman("Form Pendaftaran"); st.rerun()
 
+    # --- FITUR DOKUMENTASI & KOMENTAR ---
     st.write("---")
     st.subheader("📸 Dokumentasi Kegiatan")
-    
     conn = sqlite3.connect('alumni.db')
     df_ev = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events", conn)
     
@@ -102,9 +101,9 @@ if st.session_state.menu_aktif == "Home":
         imgs = [get_image_base64(p) for p in df_f['path_foto'] if get_image_base64(p)]
         
         if imgs:
-            slides = "".join([f'<div class="mySlides fade"><img src="{i}" style="width:100%; height:400px; object-fit:cover; border-radius:15px;"></div>' for i in imgs])
+            slides_html = "".join([f'<div class="mySlides fade"><img src="{i}" style="width:100%; height:400px; object-fit:cover; border-radius:15px;"></div>' for i in imgs])
             components.html(f"""
-                <div class="slideshow-container">{slides}</div>
+                <div class="slideshow-container">{slides_html}</div>
                 <script>
                     let sIdx = 0; function showS() {{
                         let s = document.getElementsByClassName("mySlides");
@@ -116,7 +115,7 @@ if st.session_state.menu_aktif == "Home":
                 </script>
             """, height=410)
 
-            # Fitur Komentar
+            # --- FITUR KOMENTAR ---
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
             df_k = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan_ev,))
@@ -136,7 +135,7 @@ if st.session_state.menu_aktif == "Home":
         st.info("Belum ada foto kegiatan. Silakan upload melalui menu 'Admin Panel'.")
     conn.close()
 
-# --- B. HALAMAN FORM PENDAFTARAN ---
+# --- B. HALAMAN FORM PENDAFTARAN (Mesin Pagi Bapak) ---
 elif st.session_state.menu_aktif == "Form Pendaftaran":
     st.title("📝 Pendaftaran Anggota Baru")
     with st.form("regis_form", clear_on_submit=True):
@@ -183,16 +182,17 @@ elif st.session_state.menu_aktif == "Database Alumni":
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
     with st.form("admin_upload"):
-        up_foto = st.file_uploader("Upload Foto Kegiatan", type=['jpg','png','jpeg'])
+        up_foto = st.file_uploader("Upload Foto Dokumentasi", type=['jpg','png','jpeg'])
         up_desk = st.text_input("Nama Event (Contoh: KOPDAR 486)")
         if st.form_submit_button("Simpan Foto Event") and up_foto and up_desk:
             path_ev = f"static/img_events/{up_foto.name}"
             with open(path_ev, "wb") as f: f.write(up_foto.getbuffer())
             conn = sqlite3.connect('alumni.db')
             conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (path_ev, up_desk))
-            conn.commit(); conn.close()
-            st.success("Foto Berhasil diupload!")
+            conn.commit(); conn.close(); st.success("Foto event berhasil ditambah!")
 
 else:
     st.title(st.session_state.menu_aktif)
     st.info("Halaman sedang dalam pengembangan.")
+    if st.button("⬅️ Balik ke Menu Utama"):
+        pindah_halaman("Home"); st.rerun()
