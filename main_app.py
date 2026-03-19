@@ -64,32 +64,41 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 6. SIDEBAR NAVIGASI (HIDDEN FORM) ---
+# --- 6. SIDEBAR NAVIGASI ---
 with st.sidebar:
     st.markdown("### 📂 Menu Utama")
-    # Form Pendaftaran TIDAK dimasukkan ke sini
-    list_menu = ["Home", "Database Alumni", "Berita & Kalender Kegiatan", 
-                 "In Memoriam Alumni Sempat 86", "Admin Panel"]
+    # Daftar menu sesuai gambar Bapak, tanpa "Form Pendaftaran" agar tetap tersembunyi
+    list_menu = [
+        "Home", 
+        "Database Alumni", 
+        "Berita & Kalender Kegiatan", 
+        "In Memoriam Alumni Sempat 86", 
+        "Komunitas", 
+        "Networking", 
+        "Donasi", 
+        "Admin Panel"
+    ]
     
-    # Logika navigasi tetap sama
+    # Menentukan index menu yang sedang aktif
     current_idx = 0
     if st.session_state.menu_aktif in list_menu:
         current_idx = list_menu.index(st.session_state.menu_aktif)
     elif st.session_state.menu_aktif == "Form Pendaftaran":
-        current_idx = 0 # Default ke Home jika di sidebar
+        current_idx = 0 # Tetap sorot Home jika sedang di form pendaftaran
         
     menu_pilihan = st.radio("Pilih Halaman:", list_menu, index=current_idx)
+    
+    # Update halaman jika user klik menu di sidebar
     if menu_pilihan != st.session_state.menu_aktif and st.session_state.menu_aktif != "Form Pendaftaran":
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
-
-# --- 7. LOGIKA HALAMAN ---
+# --- 7. LOGIKA KONTEN HALAMAN ---
 
 # A. HALAMAN HOME
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div class="main-header"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # Tombol Akses Cepat (Hidden Navigation ke Form Pendaftaran)
+    # Tombol Akses Cepat
     c_spacer, c_daftar, c_masuk = st.columns([7, 1.5, 1.5]) 
     with c_daftar:
         if st.button("📝 Daftar", use_container_width=True):
@@ -102,22 +111,44 @@ if st.session_state.menu_aktif == "Home":
 
     st.write("---")
 
-    # 1. Slideshow Dokumentasi
+    # Dokumentasi & Komentar (Tepat di bawah foto)
     st.subheader("📸 Dokumentasi Kegiatan")
     conn = sqlite3.connect('alumni.db')
-    
-    # Pastikan tabel komentar ada
-    conn.execute('''CREATE TABLE IF NOT EXISTS data_komentar 
-                    (id INTEGER PRIMARY KEY AUTOINCREMENT, event_deskripsi TEXT, 
-                     nama_penulis TEXT, isi_komentar TEXT, waktu TEXT)''')
-    
-    df_list_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events WHERE deskripsi != ''", conn)
+    df_list_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events", conn)
     
     if not df_list_event.empty:
         pilihan_event = st.selectbox("Pilih Event untuk Dilihat:", df_list_event['deskripsi'])
-        df_foto = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan_event,))
+        # ... (Logika Slideshow Foto di sini) ...
         
-        list_foto = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
+        # FITUR KOMENTAR ALUMNI
+        st.write("---")
+        st.markdown("### 💬 Komentar Alumni")
+        # (Logika menampilkan komentar di sini)
+    
+    conn.close()
+    st.write("---")
+    st.subheader("🗓️ Agenda Kegiatan Mendatang")
+
+# B. HALAMAN FORM PENDAFTARAN (HIDDEN DARI SIDEBAR)
+elif st.session_state.menu_aktif == "Form Pendaftaran":
+    st.title("📝 Form Pendaftaran Alumni")
+    # ... (Isi form: Nama, Alamat, Kelas, ID, Pwd, Foto Profile) ...
+    # Jangan lupa tambahkan st.balloons() dan redirect ke Database Alumni di sini!
+
+# C. HALAMAN DATABASE ALUMNI
+elif st.session_state.menu_aktif == "Database Alumni":
+    st.title("🔍 Database Alumni")
+    # Tampilkan tabel anggota dari database
+
+# D. HALAMAN LAIN (KOMUNITAS, NETWORKING, DLL)
+elif st.session_state.menu_aktif in ["Komunitas", "Networking", "Donasi"]:
+    st.title(f"📂 {st.session_state.menu_aktif}")
+    st.info("Halaman ini sedang dalam pengembangan.")
+
+# E. HALAMAN ADMIN
+elif st.session_state.menu_aktif == "Admin Panel":
+    st.title("⚙️ Admin Panel")
+    # Logika Upload Foto & Input Agenda
         
         if list_foto:
             # Kode HTML Slideshow
