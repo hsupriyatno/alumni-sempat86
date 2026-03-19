@@ -146,3 +146,100 @@ if st.session_state.menu_aktif == "Home":
                     n_k = st.text_input("Nama")
                     i_k = st.text_area("Komentar")
                     if st.form_submit_button("Kirim"):
+                        conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
+                                     (pilihan_ev, n_k, i_k, datetime.now().strftime("%d-%m-%Y")))
+                        conn.commit(); st.rerun()
+    
+    st.write("---")
+    st.subheader("🗓️ Agenda Kegiatan")
+    df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda", conn)
+    if not df_ag.empty: st.table(df_ag)
+    conn.close()
+
+# --- HALAMAN LAINNYA ---
+elif st.session_state.menu_aktif == "Database Alumni":
+    st.title("🔍 Database Alumni")
+    conn = sqlite3.connect('alumni.db')
+    df_db = pd.read_sql_query("SELECT foto_profile, nama, kelas_1, kelas_2, kelas_3, alamat FROM data_anggota", conn)
+    conn.close()
+    if not df_db.empty:
+        df_db['foto_profile'] = df_db['foto_profile'].apply(get_image_base64)
+        st.data_editor(df_db, column_config={"foto_profile": st.column_config.ImageColumn("Foto")}, use_container_width=True, hide_index=True)
+
+elif st.session_state.menu_aktif == "In Memoriam":
+    st.markdown('<div style="background:#424242;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>🌹 In Memoriam Sempat 86</h1></div>', unsafe_allow_html=True)
+    st.write("")
+    conn = sqlite3.connect('alumni.db')
+    df_mem = pd.read_sql_query("SELECT * FROM data_memoriam ORDER BY id DESC", conn)
+    conn.close()
+    if not df_mem.empty:
+        cols = st.columns(3)
+        for i, row in df_mem.iterrows():
+            with cols[i % 3]:
+                img = get_image_base64(row['foto'])
+                if img: st.image(img, use_container_width=True)
+                st.subheader(row['nama'])
+                st.caption(f"Wafat: {row['tanggal_wafat']}")
+                st.write(row['keterangan'])
+                st.write("---")
+
+elif st.session_state.menu_aktif == "Networking":
+    st.title("🤝 Networking Alumni")
+    st.write("---")
+    st.warning("⚠️ Halaman ini dalam pengembangan.")
+    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis dan pengembangan UMKM SEMPAT 86. Wadah khusus untuk mempromosikan produk dan jasa antar alumni agar ekonomi komunitas semakin kuat.")
+
+elif st.session_state.menu_aktif == "Donasi":
+    st.title("💰 Donasi Paguyuban")
+    st.write("---")
+    st.warning("⚠️ Halaman ini dalam pengembangan.")
+    st.info("🎯 **Rencana Fitur:** Transparansi uang kas, donasi sosial untuk rekan yang membutuhkan, dan iuran sukarela.")
+
+elif st.session_state.menu_aktif == "Admin Panel":
+    st.title("⚙️ Admin Panel")
+    t1, t2, t3 = st.tabs(["📸 Dokumentasi", "🗓️ Agenda", "🌹 In Memoriam"])
+    with t1:
+        with st.form("up_doc", clear_on_submit=True):
+            f = st.file_uploader("Upload Foto Dokumentasi", accept_multiple_files=True)
+            e = st.text_input("Nama Event")
+            if st.form_submit_button("Simpan Dokumentasi") and f and e:
+                conn = sqlite3.connect('alumni.db')
+                for pic in f:
+                    p = f"static/img_events/{pic.name}"
+                    with open(p, "wb") as save: save.write(pic.getbuffer())
+                    conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (p, e))
+                conn.commit(); conn.close(); st.success("Dokumentasi Berhasil Disimpan!"); st.rerun()
+    with t2:
+        with st.form("up_age", clear_on_submit=True):
+            tgl = st.date_input("Tanggal").strftime("%d-%m-%Y")
+            keg = st.text_input("Kegiatan")
+            lok = st.text_input("Lokasi")
+            if st.form_submit_button("Simpan Agenda"):
+                conn = sqlite3.connect('alumni.db')
+                conn.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi) VALUES (?,?,?)", (tgl, keg, lok))
+                conn.commit(); conn.close(); st.success("Agenda Disimpan!")
+    with t3:
+        with st.form("up_mem", clear_on_submit=True):
+            m_nama = st.text_input("Nama Rekan")
+            m_tgl = st.text_input("Tanggal Wafat")
+            m_ket = st.text_area("Keterangan")
+            m_foto = st.file_uploader("Upload Foto", type=['jpg','png','jpeg'])
+            if st.form_submit_button("Simpan In Memoriam"):
+                if m_nama and m_foto:
+                    fname = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{m_foto.name}"
+                    p = f"static/img_memoriam/{fname}"
+                    with open(p, "wb") as save: save.write(m_foto.getbuffer())
+                    conn = sqlite3.connect('alumni.db')
+                    conn.execute("INSERT INTO data_memoriam (foto, nama, tanggal_wafat, keterangan) VALUES (?,?,?,?)", (p, m_nama, m_tgl, m_ket))
+                    conn.commit(); conn.close(); st.success("Data In Memoriam Disimpan!"); st.rerun()
+
+elif st.session_state.menu_aktif == "Form Pendaftaran":
+    st.title("📝 Form Pendaftaran")
+    with st.form("reg"):
+        n = st.text_input("Nama")
+        u = st.text_input("User ID")
+        p = st.text_input("Password", type="password")
+        if st.form_submit_button("Daftar"):
+            conn = sqlite3.connect('alumni.db')
+            conn.execute("INSERT INTO data_anggota (nama, user_id, password) VALUES (?,?,?)", (n, u, p))
+            conn.commit(); conn.close(); st.success("Berhasil!"); pindah("Home")
