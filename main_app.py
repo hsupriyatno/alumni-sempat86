@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 from datetime import datetime
 
 # --- 1. SETUP FOLDER & DATABASE ---
-for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']:
+for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam', 'static/music']:
     if not os.path.exists(folder): os.makedirs(folder)
 
 def init_db():
@@ -37,41 +37,32 @@ def get_image_base64(path):
             return f"data:image/png;base64,{base64.b64encode(img_file.read()).decode()}"
     except: return None
 
+# --- FUNGSI AUDIO ---
+def play_audio(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            data = f.read()
+            b64 = base64.b64encode(data).decode()
+            md = f"""
+                <audio id="myAudio" autoplay loop controls style="width: 100%; height: 30px;">
+                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                </audio>
+                <script>
+                    var audio = document.getElementById("myAudio");
+                    audio.volume = 0.5;
+                </script>
+                """
+            st.sidebar.markdown(md, unsafe_allow_html=True)
+    else:
+        st.sidebar.error("File musik tidak ditemukan di folder static/music/")
+
 # --- 2. NAVIGASI SIDEBAR & TEMA WARNA ---
 st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
-# --- FUNGSI PUTAR MUSIK (TARUH DI ATAS, SETELAH IMPORT) ---
-def putar_musik():
-    # GANTI 'lagu_kenangan.mp3' di bawah ini dengan nama asli file Bapak
-    nama_file_musik = "static/lagu_kenangan.mp3" 
-    
-    if os.path.exists(nama_file_musik):
-        with open(nama_file_musik, 'rb') as f:
-            audio_bytes = f.read()
-            audio_base64 = base64.b64encode(audio_bytes).decode()
-            
-        st.markdown(f"""
-            <audio autoplay="true" loop="true" style="display:none;">
-                <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-            </audio>
-            <div style="text-align:right; font-size:10px; color:#2b5298; opacity:0.5;">
-                🎵 Musik latar aktif
-            </div>
-        """, unsafe_allow_html=True)
-    else:
-        # Jika file tidak ketemu, dia cuma kasih peringatan kecil di sidebar (ngga bikin error)
-        st.sidebar.warning(f"File {nama_file_musik} tidak ditemukan di folder static")
-
-# --- PANGGIL FUNGSI INI DI DALAM SETIAP HALAMAN ATAU DI BAWAH SIDEBAR ---
-putar_musik()
 
 st.markdown("""
     <style>
-    .stApp {
-        background: linear-gradient(to bottom, #e3f2fd, #ffffff);
-    }
-    [data-testid="stSidebar"] {
-        background-color: #f0f7ff;
-    }
+    .stApp { background: linear-gradient(to bottom, #e3f2fd, #ffffff); }
+    [data-testid="stSidebar"] { background-color: #f0f7ff; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -84,6 +75,13 @@ def pindah(hal):
 
 with st.sidebar:
     st.title("🏫 SEMPAT 86")
+    
+    # --- FITUR MUSIK DI SIDEBAR ---
+    st.write("🎵 **Lagu Kenangan**")
+    # Pastikan file Bapak ada di static/music/lagu_kenangan.mp3
+    play_audio("static/music/lagu_kenangan.mp3") 
+    st.write("---")
+    
     if st.button("🏠 Home", use_container_width=True): pindah("Home")
     if st.button("🔍 Database Alumni", use_container_width=True): pindah("Database Alumni")
     if st.button("🌹 In Memoriam", use_container_width=True): pindah("In Memoriam")
@@ -131,18 +129,11 @@ if st.session_state.menu_aktif == "Home":
         
         if imgs:
             slides = "".join([f'<div class="mySlides fade"><img src="{i}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for i in imgs])
-            # JAVASCRIPT SLOW MOTION (Transisi 4 detik, Tampil 7 detik)
             components.html(f'''
             <style>
                 .mySlides {{ display: none; }}
-                .fade {{
-                    animation-name: fade;
-                    animation-duration: 4.0s; 
-                }}
-                @keyframes fade {{
-                    from {{opacity: 0}} 
-                    to {{opacity: 1}}
-                }}
+                .fade {{ animation-name: fade; animation-duration: 4.0s; }}
+                @keyframes fade {{ from {{opacity: 0}} to {{opacity: 1}} }}
                 .slideshow-container {{ width: 100%; position: relative; margin: auto; }}
             </style>
             <div class="slideshow-container">{slides}</div>
@@ -180,7 +171,8 @@ if st.session_state.menu_aktif == "Home":
     if not df_ag.empty: st.table(df_ag)
     conn.close()
 
-# --- HALAMAN LAINNYA ---
+# --- HALAMAN LAIN (DATABASE, MEMORIAM, NETWORKING, DONASI, ADMIN) ---
+# ... (Kodenya sama seperti sebelumnya, silakan lanjutkan paste bagian elif lainnya)
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
     conn = sqlite3.connect('alumni.db')
@@ -211,13 +203,13 @@ elif st.session_state.menu_aktif == "Networking":
     st.title("🤝 Networking Alumni")
     st.write("---")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis dan pengembangan UMKM SEMPAT 86. Wadah khusus untuk mempromosikan produk dan jasa antar alumni agar ekonomi komunitas semakin kuat.")
+    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis dan pengembangan UMKM SEMPAT 86.")
 
 elif st.session_state.menu_aktif == "Donasi":
     st.title("💰 Donasi Paguyuban")
     st.write("---")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("🎯 **Rencana Fitur:** Transparansi uang kas, donasi sosial untuk rekan yang membutuhkan, dan iuran sukarela.")
+    st.info("🎯 **Rencana Fitur:** Transparansi uang kas dan donasi sosial.")
 
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
