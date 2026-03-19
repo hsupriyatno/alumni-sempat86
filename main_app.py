@@ -68,11 +68,11 @@ with st.sidebar:
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
 
-# --- 6. LOGIKA HALAMAN HOME (VERSI LENGKAP) ---
+# --- 6. LOGIKA HALAMAN HOME (VERSI FINAL TERLENGKAP) ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background: #2b5298; padding: 30px; border-radius: 15px; color: white; text-align: center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # --- TOMBOL DAFTAR & MASUK (DI ATAS) ---
+    # --- TOMBOL DAFTAR & MASUK ---
     col_l1, col_l2 = st.columns([1, 1])
     with col_l1:
         if st.button("📝 DAFTAR ANGGOTA", use_container_width=True):
@@ -132,7 +132,6 @@ if st.session_state.menu_aktif == "Home":
                                         conn, params=(pilihan_event,))
             
             if not df_komen.empty:
-                # Header Kolom
                 h1, h2, h3 = st.columns([1, 1.5, 3])
                 h1.caption("🕒 Waktu")
                 h2.caption("👤 Nama")
@@ -144,7 +143,6 @@ if st.session_state.menu_aktif == "Home":
                     c2.markdown(f"**{row['nama_penulis']}**")
                     c3.info(row['isi_komentar'])
             
-            # Form Tambah Komentar
             with st.expander("➕ Tulis Komentar"):
                 with st.form(key=f"form_komen_{pilihan_event}", clear_on_submit=True):
                     nama_in = st.text_input("Nama Anda:", placeholder="Kosongkan untuk jadi Tamu")
@@ -153,14 +151,6 @@ if st.session_state.menu_aktif == "Home":
                         c = conn.cursor()
                         waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
                         nama_final = nama_in if nama_in else "Tamu"
-                        check = c.execute("SELECT nama FROM data_anggota WHERE nama = ?", (nama_final,)).fetchone()
-                        if not check and nama_final != "Tamu":
-                            nama_final = f"{nama_final} (Tamu)"
-                        c.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
-                                  (pilihan_event, nama_final, pesan_in, waktu_skrg))
-                        conn.commit()
-                        st.rerun()
-    conn.close()
 # --- AKHIR LOGIKA HOME ---
 
 # --- 7. ADMIN PANEL (UNTUK UPLOAD) ---
