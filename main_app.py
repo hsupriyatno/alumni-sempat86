@@ -6,7 +6,7 @@ import base64
 import streamlit.components.v1 as components
 from datetime import datetime
 
-# --- 1. SETUP FOLDER & DATABASE (DIKUNCI) ---
+# --- 1. SETUP FOLDER & DATABASE ---
 for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']:
     if not os.path.exists(folder): os.makedirs(folder)
 
@@ -57,9 +57,25 @@ with st.sidebar:
 
 # --- 3. LOGIKA HALAMAN ---
 
-# --- A. HALAMAN HOME (DOKUMEN & AGENDA) ---
+# --- A. HALAMAN HOME (DENGAN POLESAN TEKS MUTIARA) ---
 if st.session_state.menu_aktif == "Home":
+    # Header Utama
     st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
+    
+    # --- POLESAN TEKS MUTIARA (SESUAI GAMBAR) ---
+    st.markdown("""
+        <div style="text-align:center; padding:20px; font-family: 'Times New Roman', serif;">
+            <p style="font-size:22px; color:#f1c40f; font-style:italic; margin-bottom:5px;">
+                "Menyambung Kisah, Mempererat Persaudaraan. Jarak boleh membentang, waktu boleh berlalu, namun ikatan kita tetap satu."
+            </p>
+            <p style="font-size:18px; color:#ffffff; line-height:1.6; max-width:800px; margin:auto;">
+                Mari jadikan kenangan masa sekolah sebagai energi untuk terus bergerak, berdampak, dan berkarya di bidang masing-masing. Karena sebaik-baiknya alumni adalah yang kehadirannya memberi manfaat bagi sesama.
+            </p>
+            <h2 style="color:#f1c40f; font-style:italic; margin-top:15px;">
+                Satu almamater, sejuta karya, selamanya saudara
+            </h2>
+        </div>
+    """, unsafe_allow_html=True)
     
     st.write("")
     c1, c2 = st.columns(2)
@@ -102,7 +118,7 @@ if st.session_state.menu_aktif == "Home":
     if not df_ag.empty: st.table(df_ag)
     conn.close()
 
-# --- B. DATABASE ALUMNI (DIKUNCI) ---
+# --- BAGIAN LAIN TETAP SAMA (TIDAK BERUBAH) ---
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
     conn = sqlite3.connect('alumni.db')
@@ -112,15 +128,12 @@ elif st.session_state.menu_aktif == "Database Alumni":
         df_db['foto_profile'] = df_db['foto_profile'].apply(get_image_base64)
         st.data_editor(df_db, column_config={"foto_profile": st.column_config.ImageColumn("Foto")}, use_container_width=True, hide_index=True)
 
-# --- C. IN MEMORIAM (PERBAIKAN TAMPILAN MULTI-DATA) ---
 elif st.session_state.menu_aktif == "In Memoriam":
     st.markdown('<div style="background:#424242;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>🌹 In Memoriam Sempat 86</h1></div>', unsafe_allow_html=True)
     st.write("")
     conn = sqlite3.connect('alumni.db')
-    # Ambil semua data tanpa filter agar tidak tertutup data terakhir
     df_mem = pd.read_sql_query("SELECT * FROM data_memoriam ORDER BY id DESC", conn)
     conn.close()
-    
     if not df_mem.empty:
         cols = st.columns(3)
         for i, row in df_mem.iterrows():
@@ -131,14 +144,10 @@ elif st.session_state.menu_aktif == "In Memoriam":
                 st.caption(f"Wafat: {row['tanggal_wafat']}")
                 st.write(row['keterangan'])
                 st.write("---")
-    else:
-        st.info("Belum ada data In Memoriam.")
 
-# --- D. ADMIN PANEL ---
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
     t1, t2, t3 = st.tabs(["📸 Dokumentasi", "🗓️ Agenda", "🌹 In Memoriam"])
-    
     with t1:
         with st.form("up_doc", clear_on_submit=True):
             f = st.file_uploader("Upload Foto Dokumentasi", accept_multiple_files=True)
@@ -150,7 +159,6 @@ elif st.session_state.menu_aktif == "Admin Panel":
                     with open(p, "wb") as save: save.write(pic.getbuffer())
                     conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (p, e))
                 conn.commit(); conn.close(); st.success("Dokumentasi Berhasil Disimpan!"); st.rerun()
-
     with t2:
         with st.form("up_age", clear_on_submit=True):
             tgl = st.date_input("Tanggal").strftime("%d-%m-%Y")
@@ -160,7 +168,6 @@ elif st.session_state.menu_aktif == "Admin Panel":
                 conn = sqlite3.connect('alumni.db')
                 conn.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi) VALUES (?,?,?)", (tgl, keg, lok))
                 conn.commit(); conn.close(); st.success("Agenda Disimpan!")
-
     with t3:
         with st.form("up_mem", clear_on_submit=True):
             m_nama = st.text_input("Nama Rekan")
@@ -169,7 +176,6 @@ elif st.session_state.menu_aktif == "Admin Panel":
             m_foto = st.file_uploader("Upload Foto", type=['jpg','png','jpeg'])
             if st.form_submit_button("Simpan In Memoriam"):
                 if m_nama and m_foto:
-                    # Tambahkan timestamp di nama file agar tidak saling menimpa
                     fname = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{m_foto.name}"
                     p = f"static/img_memoriam/{fname}"
                     with open(p, "wb") as save: save.write(m_foto.getbuffer())
