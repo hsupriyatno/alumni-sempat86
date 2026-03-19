@@ -39,22 +39,29 @@ def get_image_base64(path):
 
 # --- 2. NAVIGASI SIDEBAR & TEMA WARNA ---
 st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
-# --- TARUH KODE INI DI BAWAH st.set_page_config ---
-
+# --- FUNGSI PUTAR MUSIK (TARUH DI ATAS, SETELAH IMPORT) ---
 def putar_musik():
-    audio_file = open('lagu_kenangan.mp3', 'rb') # Sesuaikan nama filenya
-    audio_bytes = audio_file.read()
-    audio_base64 = base64.b64encode(audio_bytes).decode()
+    # GANTI 'lagu_kenangan.mp3' di bawah ini dengan nama asli file Bapak
+    nama_file_musik = "static/lagu_kenangan.mp3" 
     
-    st.markdown(f"""
-        <audio autoplay="true" loop="true" style="display:none;">
-            <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-        </audio>
-        <div style="text-align:right; font-size:12px; color:#2b5298; font-weight:bold;">
-            🎵 Memutar Lagu Kenangan...
-        </div>
-    """, unsafe_allow_html=True)
+    if os.path.exists(nama_file_musik):
+        with open(nama_file_musik, 'rb') as f:
+            audio_bytes = f.read()
+            audio_base64 = base64.b64encode(audio_bytes).decode()
+            
+        st.markdown(f"""
+            <audio autoplay="true" loop="true" style="display:none;">
+                <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+            </audio>
+            <div style="text-align:right; font-size:10px; color:#2b5298; opacity:0.5;">
+                🎵 Musik latar aktif
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Jika file tidak ketemu, dia cuma kasih peringatan kecil di sidebar (ngga bikin error)
+        st.sidebar.warning(f"File {nama_file_musik} tidak ditemukan di folder static")
 
+# --- PANGGIL FUNGSI INI DI DALAM SETIAP HALAMAN ATAU DI BAWAH SIDEBAR ---
 putar_musik()
 
 st.markdown("""
