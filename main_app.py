@@ -80,8 +80,7 @@ with st.sidebar:
         st.session_state.menu_aktif = menu_pilihan
         st.rerun()
 
-# --- 7. LOGIKA HALAMAN ---
-
+# --- 7. LOGIKA HALAMAN HOME (POSISI KOMENTAR DI BAWAH FOTO) ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div class="main-header"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
@@ -99,16 +98,19 @@ if st.session_state.menu_aktif == "Home":
     # 1. Slideshow Dokumentasi
     st.subheader("📸 Dokumentasi Kegiatan")
     conn = sqlite3.connect('alumni.db')
+    
+    # Buat tabel komentar jika belum ada (antisipasi error)
+    conn.execute('''CREATE TABLE IF NOT EXISTS data_komentar 
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT, event_deskripsi TEXT, 
+                     nama_penulis TEXT, isi_komentar TEXT, waktu TEXT)''')
+    
     df_list_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events WHERE deskripsi != ''", conn)
     
     if not df_list_event.empty:
         pilihan_event = st.selectbox("Pilih Event untuk Dilihat:", df_list_event['deskripsi'])
         df_foto = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan_event,))
         
-        list_foto = []
-        for p in df_foto['path_foto']:
-            b64 = get_image_base64(p)
-            if b64: list_foto.append(b64)
+        list_foto = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
         
         if list_foto:
             html_slides = "".join([f'<div class="mySlides fade"><img src="{img}"></div>' for img in list_foto])
@@ -127,31 +129,64 @@ if st.session_state.menu_aktif == "Home":
                     let i; let slides = document.getElementsByClassName("mySlides");
                     for (i = 0; i < slides.length; i++) {{ slides[i].style.display = "none"; }}
                     slideIndex++; if (slideIndex > slides.length) {{slideIndex = 1}}
-                    slides[slideIndex-1].style.display = "block";
+                    if(slides[slideIndex-1]) {{ slides[slideIndex-1].style.display = "block"; }}
                     setTimeout(showSlides, 3000);
                 }}
             </script>
             """
             components.html(html_code, height=410)
             st.markdown(f"<div style='text-align: center; margin-top: -10px;'><strong>📍 Event: {pilihan_event}</strong></div>", unsafe_allow_html=True)
+            
+            # --- FITUR KOMENTAR (TEPAT DI BAWAH GAMBAR) ---
+            st.write("---")
+            st.markdown("### 💬 Komentar Alumni")
+            df_komen = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", 
+                                        conn, params=(pilihan_event,))
+            
+            if not df_komen.empty:
+                h1, h2, h3 = st.columns([1, 1.5, 3])
+                h1.caption("🕒 Waktu")
+                h2.caption("👤 Nama")
+                h3.caption("💬 Komentar")
+                for _, row in df_komen.iterrows():
+                    c1, c2, c3 = st.columns([1, 1.5, 3])
+                    c1.markdown(f"<small style='color:gray;'>{row['waktu']}</small>", unsafe_allow_html=True)
+                    c2.markdown(f"**{row['nama_penulis']}**")
+                    c3.info(row['isi_komentar'])
+            
+            with st.expander("➕ Tulis Komentar"):
+                with st.form(key=f"form_komen_{pilihan_event}", clear_on_submit=True):
+                    nama_in = st.text_input("Nama Bapak/Ibu:", placeholder="Kosongkan untuk jadi Tamu")
+                    pesan_in = st.text_area("Tulis sapaan atau komentar:")
+                    if st.form_submit_button("Kirim Komentar 🚀") and pesan_in:
+                        waktu_skrg = datetime.now().strftime("%d/%m/%y %H:%M")
+                        nama_final = nama_in if nama_in else "Tamu"
+                        conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
+                                  (pilihan_event, nama_final, pesan_in, waktu_skrg))
+                        conn.commit()
+                        st.rerun()
         else:
-            st.warning("Foto tidak dapat dimuat. Pastikan folder static sudah diunggah ke GitHub.")
+            st.warning("Foto tidak dapat dimuat.")
     else:
         st.info("Belum ada foto dokumentasi.")
     conn.close()
 
     st.write("---")
 
-    # 2. Agenda Kegiatan (Urut Tanggal)
+    # 2. Agenda Kegiatan (PALING BAWAH)
     st.subheader("🗓️ Agenda Kegiatan Mendatang")
     conn = sqlite3.connect('alumni.db')
     df_agenda = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi, status FROM data_agenda", conn)
     conn.close()
     
     if not df_agenda.empty:
-        df_agenda['tanggal_dt'] = pd.to_datetime(df_agenda['tanggal'], format='%d %B %Y')
-        df_agenda = df_agenda.sort_values(by='tanggal_dt', ascending=True)
-        st.table(df_agenda[['tanggal', 'kegiatan', 'lokasi', 'status']])
+        # Sortir agenda agar yang terdekat muncul duluan
+        try:
+            df_agenda['tanggal_dt'] = pd.to_datetime(df_agenda['tanggal'], format='%d %B %Y')
+            df_agenda = df_agenda.sort_values(by='tanggal_dt', ascending=True)
+            st.table(df_agenda[['tanggal', 'kegiatan', 'lokasi', 'status']])
+        except:
+            st.table(df_agenda)
     else:
         st.info("Belum ada agenda kegiatan.")
 
