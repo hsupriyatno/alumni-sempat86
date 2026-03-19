@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 from datetime import datetime
 
 # --- 1. SETUP FOLDER & DATABASE ---
-for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam', 'static/music']:
+for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']:
     if not os.path.exists(folder): os.makedirs(folder)
 
 def init_db():
@@ -37,24 +37,24 @@ def get_image_base64(path):
             return f"data:image/png;base64,{base64.b64encode(img_file.read()).decode()}"
     except: return None
 
-# --- FUNGSI AUDIO ---
+# --- FUNGSI AUDIO (DISESUAIKAN KE FOLDER STATIC) ---
 def play_audio(file_path):
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
             data = f.read()
             b64 = base64.b64encode(data).decode()
             md = f"""
-                <audio id="myAudio" autoplay loop controls style="width: 100%; height: 30px;">
+                <audio id="myAudio" autoplay loop controls style="width: 100%; height: 35px;">
                     <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
                 </audio>
                 <script>
                     var audio = document.getElementById("myAudio");
-                    audio.volume = 0.5;
+                    audio.volume = 0.4;
                 </script>
                 """
             st.sidebar.markdown(md, unsafe_allow_html=True)
     else:
-        st.sidebar.error("File musik tidak ditemukan di folder static/music/")
+        st.sidebar.error(f"File {file_path} tidak ditemukan")
 
 # --- 2. NAVIGASI SIDEBAR & TEMA WARNA ---
 st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
@@ -76,10 +76,10 @@ def pindah(hal):
 with st.sidebar:
     st.title("🏫 SEMPAT 86")
     
-    # --- FITUR MUSIK DI SIDEBAR ---
+    # --- MUSIK DI SIDEBAR ---
     st.write("🎵 **Lagu Kenangan**")
-    # Pastikan file Bapak ada di static/music/lagu_kenangan.mp3
-    play_audio("static/music/lagu_kenangan.mp3") 
+    # Nama file harus sama persis dengan yang ada di folder static Bapak
+    play_audio("static/lagu_kenangan.mp3") 
     st.write("---")
     
     if st.button("🏠 Home", use_container_width=True): pindah("Home")
@@ -171,8 +171,7 @@ if st.session_state.menu_aktif == "Home":
     if not df_ag.empty: st.table(df_ag)
     conn.close()
 
-# --- HALAMAN LAIN (DATABASE, MEMORIAM, NETWORKING, DONASI, ADMIN) ---
-# ... (Kodenya sama seperti sebelumnya, silakan lanjutkan paste bagian elif lainnya)
+# --- HALAMAN LAIN (TETAP SAMA) ---
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
     conn = sqlite3.connect('alumni.db')
