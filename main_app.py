@@ -113,14 +113,36 @@ if st.session_state.menu_aktif == "Home":
                 st.image(list_foto[0], use_container_width=True, caption=f"📍 Event: {pilihan_event}")
             
             # --- FITUR KOMENTAR ---
+# --- TAMPILAN KOMENTAR SEJAJAR (TANGGAL | NAMA | KOMENTAR) ---
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
+            
+            # Ambil data komentar
             df_komen = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", 
                                         conn, params=(pilihan_event,))
             
-            for _, row in df_komen.iterrows():
-                st.markdown(f"**{row['nama_penulis']}** <small style='color:gray;'>({row['waktu']})</small>", unsafe_allow_html=True)
-                st.info(row['isi_komentar'])
+            if not df_komen.empty:
+                # Membuat Header agar sejajar
+                h1, h2, h3 = st.columns([1, 1.5, 3])
+                h1.markdown("**Waktu**")
+                h2.markdown("**Nama**")
+                h3.markdown("**Komentar**")
+                st.write("---")
+
+                for _, row in df_komen.iterrows():
+                    # Membuat baris data yang sejajar
+                    col1, col2, col3 = st.columns([1, 1.5, 3])
+                    
+                    # Kolom 1: Waktu (Ukuran kecil/abu-abu)
+                    col1.markdown(f"<small style='color:gray;'>{row['waktu']}</small>", unsafe_allow_html=True)
+                    
+                    # Kolom 2: Nama
+                    col2.markdown(f"**{row['nama_penulis']}**")
+                    
+                    # Kolom 3: Isi Komentar
+                    col3.info(row['isi_komentar'])
+            else:
+                st.info("Belum ada komentar untuk event ini.")
             
             with st.expander("➕ Tulis Komentar"):
                 with st.form(key=f"form_komen_{pilihan_event}", clear_on_submit=True):
