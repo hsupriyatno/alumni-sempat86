@@ -42,8 +42,12 @@ st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp { background: linear-gradient(to bottom, #e3f2fd, #ffffff); }
-    [data-testid="stSidebar"] { background-color: #f0f7ff; }
+    .stApp {
+        background: linear-gradient(to bottom, #e3f2fd, #ffffff);
+    }
+    [data-testid="stSidebar"] {
+        background-color: #f0f7ff;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -56,7 +60,6 @@ def pindah(hal):
 
 with st.sidebar:
     st.title("🏫 SEMPAT 86")
-    st.write("---")
     if st.button("🏠 Home", use_container_width=True): pindah("Home")
     if st.button("🔍 Database Alumni", use_container_width=True): pindah("Database Alumni")
     if st.button("🌹 In Memoriam", use_container_width=True): pindah("In Memoriam")
@@ -67,6 +70,7 @@ with st.sidebar:
 
 # --- 3. LOGIKA HALAMAN ---
 
+# --- A. HALAMAN HOME ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;box-shadow: 2px 2px 10px rgba(0,0,0,0.1);"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
@@ -76,7 +80,7 @@ if st.session_state.menu_aktif == "Home":
                 "Menyambung Kisah, Mempererat Persaudaraan. Jarak boleh membentang, waktu boleh berlalu, namun ikatan kita tetap satu."
             </p>
             <p style="font-size:18px; color:#333333; line-height:1.8; max-width:850px; margin:auto; font-weight: 500;">
-                Mari jadikan kenangan masa sekolah sebagai energi untuk terus bergerak, berdampak, dan berkarya di bidang masing-masing.
+                Mari jadikan kenangan masa sekolah sebagai energi untuk terus bergerak, berdampak, dan berkarya di bidang masing-masing. Karena sebaik-baiknya alumni adalah yang kehadirannya memberi manfaat bagi sesama.
             </p>
             <h2 style="color:#b8860b; font-style:italic; margin-top:20px; font-weight:bold;">
                 Satu almamater, sejuta karya, selamanya saudara
@@ -103,31 +107,29 @@ if st.session_state.menu_aktif == "Home":
         
         if imgs:
             slides = "".join([f'<div class="mySlides fade"><img src="{i}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for i in imgs])
-            components.html(f'''
-            <style>
-                .mySlides {{ display: none; }}
-                .fade {{ animation-name: fade; animation-duration: 4.0s; }}
-                @keyframes fade {{ from {{opacity: 0}} to {{opacity: 1}} }}
-                .slideshow-container {{ width: 100%; position: relative; margin: auto; }}
-            </style>
-            <div class="slideshow-container">{slides}</div>
-            <script>
-                let sIdx = 0;
-                function showS() {{
-                    let s = document.getElementsByClassName("mySlides");
-                    for (let i = 0; i < s.length; i++) s[i].style.display = "none";
-                    sIdx++;
-                    if (sIdx > s.length) sIdx = 1;
-                    if (s[sIdx-1]) s[sIdx-1].style.display = "block";
-                    setTimeout(showS, 7000); 
-                }}
-                showS();
-            </script>
-            ''', height=460)
+            components.html(f'<div class="slideshow-container">{slides}</div><script>let sIdx=0;function showS(){{let s=document.getElementsByClassName("mySlides");for(let i=0;i<s.length;i++)s[i].style.display="none";sIdx++;if(sIdx>s.length)sIdx=1;if(s[sIdx-1])s[sIdx-1].style.display="block";setTimeout(showS,3000)}}showS();</script>', height=460)
 
-    # ... (Bagian komentar dan agenda tetap sama)
+            st.write("---")
+            st.markdown(f"### 💬 Komentar: {pilihan_ev}")
+            df_k = pd.read_sql_query("SELECT waktu, nama_penulis, isi_komentar FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan_ev,))
+            if not df_k.empty: st.table(df_k)
+            
+            with st.expander("Tulis Komentar"):
+                with st.form("f_kom", clear_on_submit=True):
+                    n_k = st.text_input("Nama")
+                    i_k = st.text_area("Komentar")
+                    if st.form_submit_button("Kirim"):
+                        conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
+                                     (pilihan_ev, n_k, i_k, datetime.now().strftime("%d-%m-%Y")))
+                        conn.commit(); st.rerun()
+    
+    st.write("---")
+    st.subheader("🗓️ Agenda Kegiatan")
+    df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda", conn)
+    if not df_ag.empty: st.table(df_ag)
     conn.close()
 
+# --- B. DATABASE ALUMNI ---
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
     conn = sqlite3.connect('alumni.db')
@@ -137,8 +139,10 @@ elif st.session_state.menu_aktif == "Database Alumni":
         df_db['foto_profile'] = df_db['foto_profile'].apply(get_image_base64)
         st.data_editor(df_db, column_config={"foto_profile": st.column_config.ImageColumn("Foto")}, use_container_width=True, hide_index=True)
 
+# --- C. IN MEMORIAM ---
 elif st.session_state.menu_aktif == "In Memoriam":
     st.markdown('<div style="background:#424242;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>🌹 In Memoriam Sempat 86</h1></div>', unsafe_allow_html=True)
+    st.write("")
     conn = sqlite3.connect('alumni.db')
     df_mem = pd.read_sql_query("SELECT * FROM data_memoriam ORDER BY id DESC", conn)
     conn.close()
@@ -153,22 +157,24 @@ elif st.session_state.menu_aktif == "In Memoriam":
                 st.write(row['keterangan'])
                 st.write("---")
 
+# --- D. NETWORKING (UPDATE NARASI UMKM) ---
 elif st.session_state.menu_aktif == "Networking":
     st.title("🤝 Networking Alumni")
     st.write("---")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis dan pengembangan UMKM SEMPAT 86.")
+    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis dan pengembangan UMKM SEMPAT 86. Wadah khusus untuk mempromosikan produk dan jasa antar alumni agar ekonomi komunitas semakin kuat.")
 
+# --- E. DONASI (TETAP) ---
 elif st.session_state.menu_aktif == "Donasi":
     st.title("💰 Donasi Paguyuban")
     st.write("---")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("🎯 **Rencana Fitur:** Transparansi uang kas dan donasi sosial.")
+    st.info("🎯 **Rencana Fitur:** Transparansi uang kas, donasi sosial untuk rekan yang membutuhkan, dan iuran sukarela.")
 
+# --- F. ADMIN PANEL ---
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
     t1, t2, t3 = st.tabs(["📸 Dokumentasi", "🗓️ Agenda", "🌹 In Memoriam"])
-    # ... (Isi Admin Panel tetap sama seperti kode sebelumnya)
     with t1:
         with st.form("up_doc", clear_on_submit=True):
             f = st.file_uploader("Upload Foto Dokumentasi", accept_multiple_files=True)
@@ -179,7 +185,30 @@ elif st.session_state.menu_aktif == "Admin Panel":
                     p = f"static/img_events/{pic.name}"
                     with open(p, "wb") as save: save.write(pic.getbuffer())
                     conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (p, e))
-                conn.commit(); conn.close(); st.success("Berhasil!"); st.rerun()
+                conn.commit(); conn.close(); st.success("Dokumentasi Berhasil Disimpan!"); st.rerun()
+    with t2:
+        with st.form("up_age", clear_on_submit=True):
+            tgl = st.date_input("Tanggal").strftime("%d-%m-%Y")
+            keg = st.text_input("Kegiatan")
+            lok = st.text_input("Lokasi")
+            if st.form_submit_button("Simpan Agenda"):
+                conn = sqlite3.connect('alumni.db')
+                conn.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi) VALUES (?,?,?)", (tgl, keg, lok))
+                conn.commit(); conn.close(); st.success("Agenda Disimpan!")
+    with t3:
+        with st.form("up_mem", clear_on_submit=True):
+            m_nama = st.text_input("Nama Rekan")
+            m_tgl = st.text_input("Tanggal Wafat")
+            m_ket = st.text_area("Keterangan")
+            m_foto = st.file_uploader("Upload Foto", type=['jpg','png','jpeg'])
+            if st.form_submit_button("Simpan In Memoriam"):
+                if m_nama and m_foto:
+                    fname = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{m_foto.name}"
+                    p = f"static/img_memoriam/{fname}"
+                    with open(p, "wb") as save: save.write(m_foto.getbuffer())
+                    conn = sqlite3.connect('alumni.db')
+                    conn.execute("INSERT INTO data_memoriam (foto, nama, tanggal_wafat, keterangan) VALUES (?,?,?,?)", (p, m_nama, m_tgl, m_ket))
+                    conn.commit(); conn.close(); st.success("Data In Memoriam Disimpan!"); st.rerun()
 
 elif st.session_state.menu_aktif == "Form Pendaftaran":
     st.title("📝 Form Pendaftaran")
