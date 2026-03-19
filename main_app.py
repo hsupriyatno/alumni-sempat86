@@ -6,10 +6,9 @@ import base64
 from datetime import datetime
 import streamlit.components.v1 as components
 
-# --- 1. KONFIGURASI HALAMAN ---
+# --- 1. KONFIGURASI & FOLDER ---
 st.set_page_config(page_title="Alumni SEMPAT 86", layout="wide")
 
-# Buat folder penyimpanan jika belum ada
 for folder in ["static/img_profile", "static/img_events"]:
     if not os.path.exists(folder):
         os.makedirs(folder)
@@ -23,22 +22,17 @@ def get_image_base64(path):
 
 def init_db():
     conn = sqlite3.connect('alumni.db')
-    # Tabel Anggota
     conn.execute('''CREATE TABLE IF NOT EXISTS data_anggota 
                     (foto TEXT, nama TEXT, alamat TEXT, k1 TEXT, k2 TEXT, k3 TEXT, user_id TEXT PRIMARY KEY, password TEXT)''')
-    # Tabel Event
     conn.execute('''CREATE TABLE IF NOT EXISTS data_events 
                     (id INTEGER PRIMARY KEY AUTOINCREMENT, path_foto TEXT, deskripsi TEXT)''')
-    # Tabel Komentar
     conn.execute('''CREATE TABLE IF NOT EXISTS data_komentar 
                     (id INTEGER PRIMARY KEY AUTOINCREMENT, event_deskripsi TEXT, nama_penulis TEXT, isi_komentar TEXT, waktu TEXT)''')
-    # Tabel Agenda
     conn.execute('''CREATE TABLE IF NOT EXISTS data_agenda 
                     (id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, kegiatan TEXT, lokasi TEXT, status TEXT)''')
     conn.commit()
     conn.close()
 
-# Jalankan inisialisasi database
 init_db()
 
 # --- 3. SESSION STATE ---
@@ -65,26 +59,22 @@ with st.sidebar:
 
 # --- 5. LOGIKA HALAMAN ---
 
-# A. HOME
+# A. HOME (Slideshow + Komentar + Agenda)
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background-color:#1e478a; padding:20px; border-radius:10px; text-align:center;"><h1 style="color:white;">Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # Tombol Hidden Form
     c1, c2, c3 = st.columns([7, 1.5, 1.5])
     with c2:
         if st.button("📝 Daftar", use_container_width=True):
-            st.session_state.menu_aktif = "Form Pendaftaran"
-            st.rerun()
+            st.session_state.menu_aktif = "Form Pendaftaran"; st.rerun()
     with c3:
         if st.button("🔑 Masuk", use_container_width=True):
-            st.session_state.menu_aktif = "Database Alumni"
-            st.rerun()
+            st.session_state.menu_aktif = "Database Alumni"; st.rerun()
 
     st.write("---")
     st.subheader("📸 Dokumentasi Kegiatan")
-    
     conn = sqlite3.connect('alumni.db')
-    df_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events", conn)
+    df_event = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events WHERE deskripsi != ''", conn)
     
     if not df_event.empty:
         pilihan = st.selectbox("Pilih Event:", df_event['deskripsi'])
@@ -92,7 +82,6 @@ if st.session_state.menu_aktif == "Home":
         list_f = [get_image_base64(p) for p in df_foto['path_foto'] if get_image_base64(p)]
         
         if list_f:
-            # Slideshow HTML
             slides_html = "".join([f'<div class="mySlides fade"><img src="{img}" style="width:100%; height:400px; object-fit:cover; border-radius:15px;"></div>' for img in list_f])
             components.html(f"""
                 <div class="slideshow-container">{slides_html}</div>
@@ -102,17 +91,15 @@ if st.session_state.menu_aktif == "Home":
                         let slides = document.getElementsByClassName("mySlides");
                         for (let i = 0; i < slides.length; i++) slides[i].style.display = "none";
                         slideIndex++; if (slideIndex > slides.length) slideIndex = 1;
-                        slides[slideIndex-1].style.display = "block";
+                        if(slides[slideIndex-1]) slides[slideIndex-1].style.display = "block";
                         setTimeout(showSlides, 3000);
                     }}
                 </script>
             """, height=410)
 
-            # Bagian Komentar
             st.write("---")
             st.markdown("### 💬 Komentar Alumni")
             df_k = pd.read_sql_query("SELECT nama_penulis, isi_komentar, waktu FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan,))
-            
             for _, r in df_k.iterrows():
                 col_a, col_b, col_c = st.columns([1, 1.5, 3])
                 col_a.caption(r['waktu'])
@@ -126,54 +113,86 @@ if st.session_state.menu_aktif == "Home":
                     if st.form_submit_button("Kirim 🚀") and p_in:
                         conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
                                      (pilihan, (n_in if n_in else "Tamu"), p_in, datetime.now().strftime("%d/%m/%y %H:%M")))
-                        conn.commit()
-                        st.rerun()
+                        conn.commit(); st.rerun()
+
+    st.write("---")
+    st.subheader("🗓️ Agenda Kegiatan Mendatang")
+    df_agenda = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi, status FROM data_agenda", conn)
+    if not df_agenda.empty:
+        st.table(df_agenda)
+    else:
+        st.info("Belum ada agenda.")
     conn.close()
 
-# B. FORM PENDAFTARAN (HIDDEN)
+# B. FORM PENDAFTARAN LENGKAP
 elif st.session_state.menu_aktif == "Form Pendaftaran":
-    st.title("📝 Pendaftaran Alumni")
+    st.title("📝 Form Pendaftaran Alumni")
     if st.button("⬅️ Kembali"):
         st.session_state.menu_aktif = "Home"; st.rerun()
-        
-    with st.form("reg"):
-        n = st.text_input("Nama Lengkap")
-        uid = st.text_input("ID/Username")
-        pwd = st.text_input("Password", type="password")
-        if st.form_submit_button("Daftar"):
-            if n and uid and pwd:
+    
+    with st.form("regis_lengkap"):
+        col1, col2 = st.columns(2)
+        with col1:
+            nama = st.text_input("Nama Lengkap")
+            alamat = st.text_area("Alamat")
+            uid = st.text_input("ID/Username (Unik)")
+            pwd = st.text_input("Password", type="password")
+        with col2:
+            k1 = st.text_input("Kelas 1 (Contoh: 1A)")
+            k2 = st.text_input("Kelas 2")
+            k3 = st.text_input("Kelas 3")
+            f_profile = st.file_uploader("Upload Foto Profile", type=['jpg','png','jpeg'])
+            
+        if st.form_submit_button("Daftar Sekarang 🚀"):
+            if nama and uid and pwd:
+                path_p = ""
+                if f_profile:
+                    path_p = f"static/img_profile/{uid}_{f_profile.name}"
+                    with open(path_p, "wb") as f: f.write(f_profile.getbuffer())
+                
                 conn = sqlite3.connect('alumni.db')
                 try:
-                    conn.execute("INSERT INTO data_anggota (nama, user_id, password) VALUES (?,?,?)", (n, uid, pwd))
-                    conn.commit()
-                    st.balloons()
-                    st.success("Berhasil!")
-                    st.session_state.menu_aktif = "Database Alumni"
-                    st.rerun()
-                except: st.error("ID sudah ada")
+                    conn.execute("INSERT INTO data_anggota VALUES (?,?,?,?,?,?,?,?)", (path_p, nama, alamat, k1, k2, k3, uid, pwd))
+                    conn.commit(); st.balloons(); st.success(f"Selamat {nama}!"); st.session_state.menu_aktif = "Database Alumni"; st.rerun()
+                except: st.error("ID sudah digunakan.")
                 finally: conn.close()
 
-# C. DATABASE ALUMNI
+# C. DATABASE ALUMNI LENGKAP
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
     conn = sqlite3.connect('alumni.db')
-    df_all = pd.read_sql_query("SELECT nama, user_id FROM data_anggota", conn)
-    st.dataframe(df_all, use_container_width=True)
+    df_db = pd.read_sql_query("SELECT foto, nama, k1 as 'Kelas 1', k2 as 'Kelas 2', k3 as 'Kelas 3', alamat FROM data_anggota", conn)
+    st.dataframe(df_db, use_container_width=True)
     conn.close()
 
-# D. ADMIN PANEL
+# D. ADMIN PANEL (Tab Dokumentasi & Agenda Berdampingan)
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
-    with st.form("add_event"):
-        f_up = st.file_uploader("Foto", type=['jpg','png'], accept_multiple_files=True)
-        desc = st.text_input("Nama Event")
-        if st.form_submit_button("Simpan"):
-            conn = sqlite3.connect('alumni.db')
-            for f in f_up:
-                path = os.path.join("static/img_events", f.name)
-                with open(path, "wb") as file: file.write(f.getbuffer())
-                conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (path, desc))
-            conn.commit(); conn.close(); st.rerun()
+    tab1, tab2 = st.tabs(["📸 Upload Dokumentasi", "🗓️ Input Agenda"])
+    
+    with tab1:
+        with st.form("admin_foto"):
+            files = st.file_uploader("Pilih Foto-foto", type=['jpg','png','jpeg'], accept_multiple_files=True)
+            desc_event = st.text_input("Nama Event (Misal: Bukber 2026)")
+            if st.form_submit_button("Simpan Dokumentasi") and files:
+                conn = sqlite3.connect('alumni.db')
+                for f in files:
+                    p = f"static/img_events/{datetime.now().strftime('%Y%m%d%H%M%S')}_{f.name}"
+                    with open(p, "wb") as file: file.write(f.getbuffer())
+                    conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (p, desc_event))
+                conn.commit(); conn.close(); st.success("Foto tersimpan!"); st.rerun()
+
+    with tab2:
+        with st.form("admin_agenda"):
+            tgl = st.date_input("Tanggal")
+            keg = st.text_input("Kegiatan")
+            lok = st.text_input("Lokasi")
+            stat = st.selectbox("Status", ["Terencana", "Persiapan", "Selesai"])
+            if st.form_submit_button("Simpan Agenda") and keg:
+                conn = sqlite3.connect('alumni.db')
+                conn.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi, status) VALUES (?,?,?,?)", 
+                             (tgl.strftime("%d %B %Y"), keg, lok, stat))
+                conn.commit(); conn.close(); st.success("Agenda tersimpan!"); st.rerun()
 
 # E. LAIN-LAIN
 else:
