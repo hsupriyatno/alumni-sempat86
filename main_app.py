@@ -68,7 +68,6 @@ def putar_musik():
             st.sidebar.markdown(f'<audio autoplay loop><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
             st.sidebar.caption("🎵 Musik latar aktif")
     else:
-        st.sidebar.info("💡 Tips: Simpan file 'lagu_kenangan.mp3' di folder static/music/ agar musik otomatis berputar.")
 
 with st.sidebar:
     st.title("🏫 SEMPAT 86")
