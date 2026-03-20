@@ -8,7 +8,8 @@ from datetime import datetime
 
 # --- 1. SETUP FOLDER & DATABASE ---
 for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']:
-    if not os.path.exists(folder): os.makedirs(folder)
+    if not os.path.exists(folder):
+        os.makedirs(folder)
 
 def init_db():
     conn = sqlite3.connect('alumni.db')
@@ -42,12 +43,8 @@ st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp {
-        background: linear-gradient(to bottom, #e3f2fd, #ffffff);
-    }
-    [data-testid="stSidebar"] {
-        background-color: #f0f7ff;
-    }
+    .stApp { background: linear-gradient(to bottom, #e3f2fd, #ffffff); }
+    [data-testid="stSidebar"] { background-color: #f0f7ff; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -125,8 +122,13 @@ if st.session_state.menu_aktif == "Home":
     
     st.write("---")
     st.subheader("🗓️ Agenda Kegiatan")
-    df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda", conn)
-    if not df_ag.empty: st.table(df_ag)
+    # PERBAIKAN 2: Diurutkan berdasarkan tanggal
+    df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda ORDER BY tanggal DESC", conn)
+    if not df_ag.empty:
+        # Mengubah format tampilan tanggal agar enak dibaca (DD-MM-YYYY)
+        df_ag_view = df_ag.copy()
+        df_ag_view['tanggal'] = pd.to_datetime(df_ag['tanggal']).dt.strftime('%d-%m-%Y')
+        st.table(df_ag_view)
     conn.close()
 
 # --- B. DATABASE ALUMNI ---
@@ -157,19 +159,19 @@ elif st.session_state.menu_aktif == "In Memoriam":
                 st.write(row['keterangan'])
                 st.write("---")
 
-# --- D. NETWORKING (UPDATE NARASI UMKM) ---
+# --- D. NETWORKING ---
 elif st.session_state.menu_aktif == "Networking":
     st.title("🤝 Networking Alumni")
     st.write("---")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis dan pengembangan UMKM SEMPAT 86. Wadah khusus untuk mempromosikan produk dan jasa antar alumni agar ekonomi komunitas semakin kuat.")
+    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis dan pengembangan UMKM SEMPAT 86.")
 
-# --- E. DONASI (TETAP) ---
+# --- E. DONASI ---
 elif st.session_state.menu_aktif == "Donasi":
     st.title("💰 Donasi Paguyuban")
     st.write("---")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("🎯 **Rencana Fitur:** Transparansi uang kas, donasi sosial untuk rekan yang membutuhkan, dan iuran sukarela.")
+    st.info("🎯 **Rencana Fitur:** Transparansi uang kas, donasi sosial.")
 
 # --- F. ADMIN PANEL ---
 elif st.session_state.menu_aktif == "Admin Panel":
@@ -188,13 +190,15 @@ elif st.session_state.menu_aktif == "Admin Panel":
                 conn.commit(); conn.close(); st.success("Dokumentasi Berhasil Disimpan!"); st.rerun()
     with t2:
         with st.form("up_age", clear_on_submit=True):
-            tgl = st.date_input("Tanggal").strftime("%d-%m-%Y")
+            # PERBAIKAN 2: Isian tanggal menggunakan kalender (date_input)
+            tgl_pick = st.date_input("Tanggal Kegiatan")
             keg = st.text_input("Kegiatan")
             lok = st.text_input("Lokasi")
             if st.form_submit_button("Simpan Agenda"):
                 conn = sqlite3.connect('alumni.db')
-                conn.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi) VALUES (?,?,?)", (tgl, keg, lok))
-                conn.commit(); conn.close(); st.success("Agenda Disimpan!")
+                # Simpan dalam format YYYY-MM-DD agar bisa disortir database
+                conn.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi) VALUES (?,?,?)", (str(tgl_pick), keg, lok))
+                conn.commit(); conn.close(); st.success("Agenda Disimpan!"); st.rerun()
     with t3:
         with st.form("up_mem", clear_on_submit=True):
             m_nama = st.text_input("Nama Rekan")
@@ -210,13 +214,35 @@ elif st.session_state.menu_aktif == "Admin Panel":
                     conn.execute("INSERT INTO data_memoriam (foto, nama, tanggal_wafat, keterangan) VALUES (?,?,?,?)", (p, m_nama, m_tgl, m_ket))
                     conn.commit(); conn.close(); st.success("Data In Memoriam Disimpan!"); st.rerun()
 
+# --- G. FORM PENDAFTARAN ---
 elif st.session_state.menu_aktif == "Form Pendaftaran":
     st.title("📝 Form Pendaftaran")
-    with st.form("reg"):
-        n = st.text_input("Nama")
-        u = st.text_input("User ID")
-        p = st.text_input("Password", type="password")
+    # PERBAIKAN 1: Menambah kolom Kelas 1-3, Alamat, dan Photo Profile
+    with st.form("reg", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            n = st.text_input("Nama Lengkap")
+            u = st.text_input("User ID")
+            p = st.text_input("Password", type="password")
+            almt = st.text_area("Alamat Lengkap")
+        with col2:
+            k1 = st.text_input("Kelas 1")
+            k2 = st.text_input("Kelas 2")
+            k3 = st.text_input("Kelas 3")
+            f_prof = st.file_uploader("Upload Photo Profile", type=['jpg','png','jpeg'])
+            
         if st.form_submit_button("Daftar"):
-            conn = sqlite3.connect('alumni.db')
-            conn.execute("INSERT INTO data_anggota (nama, user_id, password) VALUES (?,?,?)", (n, u, p))
-            conn.commit(); conn.close(); st.success("Berhasil!"); pindah("Home")
+            if n and u and p:
+                path_p = ""
+                if f_prof:
+                    path_p = f"static/img_profile/{u}_{f_prof.name}"
+                    with open(path_p, "wb") as f: f.write(f_prof.getbuffer())
+                
+                conn = sqlite3.connect('alumni.db')
+                conn.execute("""INSERT INTO data_anggota 
+                             (foto_profile, nama, user_id, password, kelas_1, kelas_2, kelas_3, alamat) 
+                             VALUES (?,?,?,?,?,?,?,?)""", (path_p, n, u, p, k1, k2, k3, almt))
+                conn.commit(); conn.close()
+                st.success("Pendaftaran Berhasil!"); pindah("Home")
+            else:
+                st.error("Nama, User ID, dan Password wajib diisi!")
