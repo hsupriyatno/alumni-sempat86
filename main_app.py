@@ -14,21 +14,33 @@ for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']
 def init_db():
     conn = sqlite3.connect('alumni.db')
     c = conn.cursor()
+    # Pastikan tabel utama ada
     c.execute('''CREATE TABLE IF NOT EXISTS data_anggota (
                     foto_profile TEXT, nama TEXT, user_id TEXT PRIMARY KEY, 
                     password TEXT, kelas_1 TEXT, kelas_2 TEXT, kelas_3 TEXT, alamat TEXT)''')
+    
     c.execute('''CREATE TABLE IF NOT EXISTS data_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, path_foto TEXT, deskripsi TEXT, bulan_tahun TEXT)''')
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, path_foto TEXT, deskripsi TEXT)''')
+    
+    # TRIK KHUSUS: Cek dan tambah kolom bulan_tahun jika belum ada
+    try:
+        c.execute("ALTER TABLE data_events ADD COLUMN bulan_tahun TEXT")
+    except sqlite3.OperationalError:
+        # Jika error berarti kolom sudah ada, abaikan saja
+        pass
+
     c.execute('''CREATE TABLE IF NOT EXISTS data_komentar (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, event_deskripsi TEXT, 
                     nama_penulis TEXT, isi_komentar TEXT, waktu TEXT)''')
+    
     c.execute('''CREATE TABLE IF NOT EXISTS data_agenda (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, kegiatan TEXT, lokasi TEXT)''')
+    
     c.execute('''CREATE TABLE IF NOT EXISTS data_memoriam (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, foto TEXT, nama TEXT, tanggal_wafat TEXT, keterangan TEXT)''')
+    
     conn.commit()
     conn.close()
-
 init_db()
 
 def get_image_base64(path):
