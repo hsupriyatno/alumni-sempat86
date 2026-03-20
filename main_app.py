@@ -202,7 +202,7 @@ elif st.session_state.menu_aktif == "Networking":
 # --- E. DONASI ---
 elif st.session_state.menu_aktif == "Donasi":
     st.title("💰 Donasi Paguyuban")
-    st.info("🎯 **Rencana Fitur:** Transparansi uang kas dan iuran sukarela.")
+    st.info("🎯 **Rencana Fitur:** Informasi pendanaan event, uang kas dan pemasukan iuran.")
 
 # --- F. ADMIN PANEL ---
 elif st.session_state.menu_aktif == "Admin Panel":
