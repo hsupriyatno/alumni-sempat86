@@ -6,7 +6,6 @@ import base64
 import streamlit.components.v1 as components
 from datetime import datetime
 
-
 # --- 1. SETUP FOLDER & DATABASE ---
 for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']:
     if not os.path.exists(folder): os.makedirs(folder)
@@ -18,7 +17,7 @@ def init_db():
                     foto_profile TEXT, nama TEXT, user_id TEXT PRIMARY KEY, 
                     password TEXT, kelas_1 TEXT, kelas_2 TEXT, kelas_3 TEXT, alamat TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS data_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, path_foto TEXT, deskripsi TEXT)''')
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, path_foto TEXT, deskripsi TEXT, tanggal_input TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS data_komentar (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, event_deskripsi TEXT, 
                     nama_penulis TEXT, isi_komentar TEXT, waktu TEXT)''')
@@ -43,12 +42,8 @@ st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp {
-        background: linear-gradient(to bottom, #e3f2fd, #ffffff);
-    }
-    [data-testid="stSidebar"] {
-        background-color: #f0f7ff;
-    }
+    .stApp { background: linear-gradient(to bottom, #e3f2fd, #ffffff); }
+    [data-testid="stSidebar"] { background-color: #f0f7ff; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -61,6 +56,7 @@ def pindah(hal):
 
 with st.sidebar:
     st.title("🏫 SEMPAT 86")
+    st.write("---")
     if st.button("🏠 Home", use_container_width=True): pindah("Home")
     if st.button("🔍 Database Alumni", use_container_width=True): pindah("Database Alumni")
     if st.button("🌹 In Memoriam", use_container_width=True): pindah("In Memoriam")
@@ -71,7 +67,7 @@ with st.sidebar:
 
 # --- 3. LOGIKA HALAMAN ---
 
-# --- A. HALAMAN HOME ---
+# --- A. HOME ---
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;box-shadow: 2px 2px 10px rgba(0,0,0,0.1);"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
@@ -81,11 +77,8 @@ if st.session_state.menu_aktif == "Home":
                 "Menyambung Kisah, Mempererat Persaudaraan. Jarak boleh membentang, waktu boleh berlalu, namun ikatan kita tetap satu."
             </p>
             <p style="font-size:18px; color:#333333; line-height:1.8; max-width:850px; margin:auto; font-weight: 500;">
-                Mari jadikan kenangan masa sekolah sebagai energi untuk terus bergerak, berdampak, dan berkarya di bidang masing-masing. Karena sebaik-baiknya alumni adalah yang kehadirannya memberi manfaat bagi sesama.
+                Satu almamater, sejuta karya, selamanya saudara.
             </p>
-            <h2 style="color:#b8860b; font-style:italic; margin-top:20px; font-weight:bold;">
-                Satu almamater, sejuta karya, selamanya saudara
-            </h2>
         </div>
     """, unsafe_allow_html=True)
     
@@ -99,7 +92,8 @@ if st.session_state.menu_aktif == "Home":
     st.write("---")
     st.subheader("📸 Dokumentasi Kegiatan")
     conn = sqlite3.connect('alumni.db')
-    df_ev = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events", conn)
+    # Urutkan Event berdasarkan ID terbaru (asumsi input terbaru adalah event terbaru)
+    df_ev = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events ORDER BY id DESC", conn)
     
     if not df_ev.empty:
         pilihan_ev = st.selectbox("Pilih Event:", df_ev['deskripsi'])
@@ -108,29 +102,63 @@ if st.session_state.menu_aktif == "Home":
         
         if imgs:
             slides = "".join([f'<div class="mySlides fade"><img src="{i}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for i in imgs])
-            components.html(f'<div class="slideshow-container">{slides}</div><script>let sIdx=0;function showS(){{let s=document.getElementsByClassName("mySlides");for(let i=0;i<s.length;i++)s[i].style.display="none";sIdx++;if(sIdx>s.length)sIdx=1;if(s[sIdx-1])s[sIdx-1].style.display="block";setTimeout(showS,3000)}}showS();</script>', height=460)
+            components.html(f'''
+            <style>
+                .mySlides {{ display: none; }}
+                .fade {{ animation-name: fade; animation-duration: 4.0s; }}
+                @keyframes fade {{ from {{opacity: 0}} to {{opacity: 1}} }}
+            </style>
+            <div class="slideshow-container">{slides}</div>
+            <script>
+                let sIdx = 0;
+                function showS() {{
+                    let s = document.getElementsByClassName("mySlides");
+                    for (let i = 0; i < s.length; i++) s[i].style.display = "none";
+                    sIdx++;
+                    if (sIdx > s.length) sIdx = 1;
+                    if (s[sIdx-1]) s[sIdx-1].style.display = "block";
+                    setTimeout(showS, 7000); 
+                }}
+                showS();
+            </script>
+            ''', height=460)
 
-            st.write("---")
-            st.markdown(f"### 💬 Komentar: {pilihan_ev}")
-            df_k = pd.read_sql_query("SELECT waktu, nama_penulis, isi_komentar FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan_ev,))
-            if not df_k.empty: st.table(df_k)
-            
-            with st.expander("Tulis Komentar"):
-                with st.form("f_kom", clear_on_submit=True):
-                    n_k = st.text_input("Nama")
-                    i_k = st.text_area("Komentar")
-                    if st.form_submit_button("Kirim"):
-                        conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
-                                     (pilihan_ev, n_k, i_k, datetime.now().strftime("%d-%m-%Y")))
-                        conn.commit(); st.rerun()
-    
     st.write("---")
-    st.subheader("🗓️ Agenda Kegiatan")
-    df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda", conn)
+    st.subheader("🗓️ Agenda Kegiatan (Mendatang)")
+    # Urutkan Agenda berdasarkan ID terbaru (atau bisa tanggal jika formatnya YYYY-MM-DD)
+    df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda ORDER BY id DESC", conn)
     if not df_ag.empty: st.table(df_ag)
     conn.close()
 
-# --- B. DATABASE ALUMNI ---
+# --- B. FORM PENDAFTARAN (LENGKAP) ---
+elif st.session_state.menu_aktif == "Form Pendaftaran":
+    st.title("📝 Form Pendaftaran Alumni")
+    with st.form("reg", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            n = st.text_input("Nama Lengkap")
+            u = st.text_input("User ID")
+            p = st.text_input("Password", type="password")
+            almt = st.text_area("Alamat/Domisili")
+        with col2:
+            k1 = st.selectbox("Kelas 1", ["A","B","C","D","E","F","G","H"])
+            k2 = st.selectbox("Kelas 2", ["A","B","C","D","E","F","G","H"])
+            k3 = st.selectbox("Kelas 3", ["A","B","C","D","E","F","G","H"])
+            foto = st.file_uploader("Photo Profile", type=['jpg','png','jpeg'])
+        
+        if st.form_submit_button("Daftar Sekarang", use_container_width=True):
+            if n and u and p:
+                path_f = ""
+                if foto:
+                    path_f = f"static/img_profile/{u}_{foto.name}"
+                    with open(path_f, "wb") as f: f.write(foto.getbuffer())
+                conn = sqlite3.connect('alumni.db')
+                conn.execute("INSERT INTO data_anggota VALUES (?,?,?,?,?,?,?,?)", (path_f, n, u, p, k1, k2, k3, almt))
+                conn.commit(); conn.close()
+                st.success("Pendaftaran Berhasil!"); st.balloons()
+            else: st.warning("Isi Nama, User ID, dan Password!")
+
+# --- C. DATABASE ALUMNI ---
 elif st.session_state.menu_aktif == "Database Alumni":
     st.title("🔍 Database Alumni")
     conn = sqlite3.connect('alumni.db')
@@ -140,10 +168,9 @@ elif st.session_state.menu_aktif == "Database Alumni":
         df_db['foto_profile'] = df_db['foto_profile'].apply(get_image_base64)
         st.data_editor(df_db, column_config={"foto_profile": st.column_config.ImageColumn("Foto")}, use_container_width=True, hide_index=True)
 
-# --- C. IN MEMORIAM ---
+# --- D. IN MEMORIAM ---
 elif st.session_state.menu_aktif == "In Memoriam":
     st.markdown('<div style="background:#424242;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>🌹 In Memoriam Sempat 86</h1></div>', unsafe_allow_html=True)
-    st.write("")
     conn = sqlite3.connect('alumni.db')
     df_mem = pd.read_sql_query("SELECT * FROM data_memoriam ORDER BY id DESC", conn)
     conn.close()
@@ -158,19 +185,13 @@ elif st.session_state.menu_aktif == "In Memoriam":
                 st.write(row['keterangan'])
                 st.write("---")
 
-# --- D. NETWORKING (UPDATE NARASI UMKM) ---
+# --- E. NETWORKING & DONASI ---
 elif st.session_state.menu_aktif == "Networking":
-    st.title("🤝 Networking Alumni")
-    st.write("---")
+    st.title("🤝 Networking & UMKM")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis dan pengembangan UMKM SEMPAT 86. Wadah khusus untuk mempromosikan produk dan jasa antar alumni agar ekonomi komunitas semakin kuat.")
-
-# --- E. DONASI (TETAP) ---
 elif st.session_state.menu_aktif == "Donasi":
-    st.title("💰 Donasi Paguyuban")
-    st.write("---")
+    st.title("💰 Donasi")
     st.warning("⚠️ Halaman ini dalam pengembangan.")
-    st.info("🎯 **Rencana Fitur:** Transparansi uang kas, donasi sosial untuk rekan yang membutuhkan, dan iuran sukarela.")
 
 # --- F. ADMIN PANEL ---
 elif st.session_state.menu_aktif == "Admin Panel":
@@ -178,15 +199,15 @@ elif st.session_state.menu_aktif == "Admin Panel":
     t1, t2, t3 = st.tabs(["📸 Dokumentasi", "🗓️ Agenda", "🌹 In Memoriam"])
     with t1:
         with st.form("up_doc", clear_on_submit=True):
-            f = st.file_uploader("Upload Foto Dokumentasi", accept_multiple_files=True)
+            f = st.file_uploader("Upload Foto", accept_multiple_files=True)
             e = st.text_input("Nama Event")
-            if st.form_submit_button("Simpan Dokumentasi") and f and e:
+            if st.form_submit_button("Simpan") and f and e:
                 conn = sqlite3.connect('alumni.db')
                 for pic in f:
                     p = f"static/img_events/{pic.name}"
                     with open(p, "wb") as save: save.write(pic.getbuffer())
                     conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (p, e))
-                conn.commit(); conn.close(); st.success("Dokumentasi Berhasil Disimpan!"); st.rerun()
+                conn.commit(); conn.close(); st.success("Selesai!"); st.rerun()
     with t2:
         with st.form("up_age", clear_on_submit=True):
             tgl = st.date_input("Tanggal").strftime("%d-%m-%Y")
@@ -202,59 +223,10 @@ elif st.session_state.menu_aktif == "Admin Panel":
             m_tgl = st.text_input("Tanggal Wafat")
             m_ket = st.text_area("Keterangan")
             m_foto = st.file_uploader("Upload Foto", type=['jpg','png','jpeg'])
-            if st.form_submit_button("Simpan In Memoriam"):
+            if st.form_submit_button("Simpan"):
                 if m_nama and m_foto:
-                    fname = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{m_foto.name}"
-                    p = f"static/img_memoriam/{fname}"
+                    p = f"static/img_memoriam/{m_foto.name}"
                     with open(p, "wb") as save: save.write(m_foto.getbuffer())
                     conn = sqlite3.connect('alumni.db')
                     conn.execute("INSERT INTO data_memoriam (foto, nama, tanggal_wafat, keterangan) VALUES (?,?,?,?)", (p, m_nama, m_tgl, m_ket))
-                    conn.commit(); conn.close(); st.success("Data In Memoriam Disimpan!"); st.rerun()
-
-elif st.session_state.menu_aktif == "Form Pendaftaran":
-    st.title("📝 Form Pendaftaran Alumni")
-    st.write("Silakan lengkapi data diri Anda untuk menyambung silaturahmi.")
-    
-    with st.form("reg", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            n = st.text_input("Nama Lengkap")
-            u = st.text_input("User ID (untuk login)")
-            p = st.text_input("Password", type="password")
-            almt = st.text_area("Alamat / Domisili Saat Ini")
-            
-        with col2:
-            k1 = st.selectbox("Kelas 1 (Dulu)", ["A", "B", "C", "D", "E", "F", "G", "H"])
-            k2 = st.selectbox("Kelas 2 (Dulu)", ["A", "B", "C", "D", "E", "F", "G", "H"])
-            k3 = st.selectbox("Kelas 3 (Dulu)", ["A", "B", "C", "D", "E", "F", "G", "H"])
-            foto = st.file_uploader("Upload Foto Profil", type=['jpg', 'jpeg', 'png'])
-
-        submit = st.form_submit_button("Daftar Sekarang", use_container_width=True)
-
-        if submit:
-            if n and u and p:
-                path_foto = ""
-                if foto:
-                    # Simpan foto ke folder static/img_profile
-                    fname = f"{u}_{foto.name}"
-                    path_foto = f"static/img_profile/{fname}"
-                    with open(path_foto, "wb") as f:
-                        f.write(foto.getbuffer())
-                
-                try:
-                    conn = sqlite3.connect('alumni.db')
-                    conn.execute("""
-                        INSERT INTO data_anggota 
-                        (foto_profile, nama, user_id, password, kelas_1, kelas_2, kelas_3, alamat) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (path_foto, n, u, p, k1, k2, k3, almt))
-                    conn.commit()
-                    conn.close()
-                    st.success(f"Selamat {n}, pendaftaran Anda berhasil!")
-                    # Beri jeda sebentar lalu balik ke Home
-                    st.balloons()
-                except sqlite3.IntegrityError:
-                    st.error("User ID sudah terdaftar, silakan gunakan ID lain.")
-            else:
-                st.warning("Mohon isi Nama, User ID, dan Password.")
+                    conn.commit(); conn.close(); st.success("Data Tersimpan!"); st.rerun()
