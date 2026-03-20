@@ -26,6 +26,13 @@ def init_db():
                     id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, kegiatan TEXT, lokasi TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS data_memoriam (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, foto TEXT, nama TEXT, tanggal_wafat TEXT, keterangan TEXT)''')
+    
+    # Proteksi Kolom untuk Cloud
+    try:
+        c.execute("ALTER TABLE data_events ADD COLUMN bulan_tahun TEXT")
+    except:
+        pass
+        
     conn.commit()
     conn.close()
 
@@ -74,22 +81,16 @@ with st.sidebar:
 # --- 3. LOGIKA HALAMAN ---
 
 if st.session_state.menu_aktif == "Home":
-    # Banner Welcome
     st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
-    
-    # Kalimat Sambutan
     st.markdown('<p class="quote-text">"Menyambung Kisah, Mempererat Persaudaraan. Jarak boleh membentang, waktu boleh berlalu, namun ikatan kita tetap satu."</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-quote">Mari jadikan kenangan masa sekolah sebagai energi untuk terus bergerak, berdampak, dan berkarya di bidang masing-masing.</p>', unsafe_allow_html=True)
     st.markdown('<h3 style="text-align:center; color:#b8860b; margin-top:-10px;">Satu almamater, sejuta karya, selamanya saudara</h3>', unsafe_allow_html=True)
     
-    # KEMBALIKAN DUA TOMBOL NAVIGASI CEPAT
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if st.button("📝 Daftar Anggota Baru", use_container_width=True):
-            pindah("Admin Panel") # Diarahkan ke admin untuk input data
+        if st.button("📝 Daftar Anggota Baru", use_container_width=True): pindah("Admin Panel")
     with col_btn2:
-        if st.button("🔍 Lihat Database Anggota", use_container_width=True):
-            pindah("Database Alumni")
+        if st.button("🔍 Lihat Database Anggota", use_container_width=True): pindah("Database Alumni")
 
     st.write("---")
     st.subheader("🗓️ Agenda Kegiatan (Mendatang)")
@@ -128,7 +129,6 @@ if st.session_state.menu_aktif == "Home":
             js_code = f'<div class="slideshow-container">{slides}</div><script>let slideIndex = 0; function showSlides() {{ let slides = document.getElementsByClassName("mySlides"); for (let i = 0; i < slides.length; i++) {{ slides[i].style.display = "none"; }} slideIndex++; if (slideIndex > slides.length) {{slideIndex = 1}} if (slides[slideIndex-1]) {{ slides[slideIndex-1].style.display = "block"; }} setTimeout(showSlides, 3000); }} showSlides();</script>'
             components.html(js_code, height=460)
         
-        # Fitur Komentar
         st.write("---")
         st.write(f"💬 **Obrolan Event: {pilihan_ev}**")
         with st.form("form_komentar", clear_on_submit=True):
@@ -195,7 +195,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
             if st.form_submit_button("Simpan Agenda"):
                 conn = sqlite3.connect('alumni.db')
                 conn.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi) VALUES (?,?,?)", (str(tgl), keg, lok))
-                conn.commit(); conn.close(); st.rerun()
+                conn.commit(); conn.close(); st.success("Agenda Disimpan!"); st.rerun()
 
     with t4:
         with st.form("up_mem", clear_on_submit=True):
@@ -206,11 +206,11 @@ elif st.session_state.menu_aktif == "Admin Panel":
                     with open(p, "wb") as f: f.write(m_f.getbuffer())
                     conn = sqlite3.connect('alumni.db')
                     conn.execute("INSERT INTO data_memoriam (foto, nama, tanggal_wafat, keterangan) VALUES (?,?,?,?)", (p, m_n, str(m_t), m_k))
-                    conn.commit(); conn.close(); st.rerun()
+                    conn.commit(); conn.close(); st.success("Data Memoriam Disimpan!"); st.rerun()
 
     with t5:
         st.subheader("Hapus Data")
-        kat = st.radio("Pilih Kategori:", ["Agenda", "Dokumentasi", "In Memoriam", "Komentar"])
+        kat = st.radio("Pilih Kategori:", ["Agenda", "Dokumentasi", "In Memoriam"])
         conn = sqlite3.connect('alumni.db')
         if kat == "Agenda":
             df_del = pd.read_sql_query("SELECT id, tanggal, kegiatan FROM data_agenda", conn)
@@ -238,3 +238,20 @@ elif st.session_state.menu_aktif == "Database Alumni":
     if not df_db.empty:
         df_db['foto_profile'] = df_db['foto_profile'].apply(get_image_base64)
         st.data_editor(df_db, column_config={"foto_profile": st.column_config.ImageColumn("Foto")}, use_container_width=True, hide_index=True)
+
+elif st.session_state.menu_aktif == "In Memoriam":
+    st.title("🌹 In Memoriam")
+    conn = sqlite3.connect('alumni.db')
+    df_mem = pd.read_sql_query("SELECT * FROM data_memoriam", conn)
+    conn.close()
+    if not df_mem.empty:
+        cols = st.columns(3)
+        for i, (idx, row) in enumerate(df_mem.iterrows()):
+            with cols[i % 3]:
+                st.markdown('<div class="mem-card">', unsafe_allow_html=True)
+                img = get_image_base64(row['foto'])
+                if img: st.image(img, use_container_width=True)
+                st.subheader(row['nama'])
+                st.write(f"Wafat: {row['tanggal_wafat']}")
+                st.write(row['keterangan'])
+                st.markdown('</div>', unsafe_allow_html=True)
