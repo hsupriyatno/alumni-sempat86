@@ -97,12 +97,15 @@ if st.session_state.menu_aktif == "Home":
     st.write("---")
     st.subheader("🗓️ Agenda Kegiatan (Mendatang)")
     conn = sqlite3.connect('alumni.db')
-    df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda ORDER BY tanggal ASC", conn)
+    df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda", conn)
     
     if not df_ag.empty:
-        df_ag['tanggal'] = pd.to_datetime(df_ag['tanggal'], errors='coerce').dt.strftime('%d %B %Y')
-        df_ag = df_ag.dropna(subset=['tanggal'])
-        st.table(df_ag)
+        # Memastikan pengurutan berdasarkan waktu kalender, bukan urutan ID atau teks
+        df_ag['tanggal_dt'] = pd.to_datetime(df_ag['tanggal'], errors='coerce')
+        df_ag = df_ag.sort_values(by='tanggal_dt', ascending=True)
+        df_ag['tanggal'] = df_ag['tanggal_dt'].dt.strftime('%d %B %Y')
+        df_ag_view = df_ag[['tanggal', 'kegiatan', 'lokasi']].dropna(subset=['tanggal'])
+        st.table(df_ag_view)
     else:
         st.info("Belum ada agenda kegiatan.")
 
@@ -183,12 +186,12 @@ elif st.session_state.menu_aktif == "In Memoriam":
 # --- D. NETWORKING ---
 elif st.session_state.menu_aktif == "Networking":
     st.title("🤝 Networking Alumni")
-    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis antar alumni dan pengembangan UMKM rekan-rekan SEMPAT 86.")
+    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis antar alumni dan bursa keahlian rekan-rekan SEMPAT 86.")
 
 # --- E. DONASI ---
 elif st.session_state.menu_aktif == "Donasi":
     st.title("💰 Donasi Paguyuban")
-    st.info("🎯 **Rencana Fitur:** Informasi event, pendanaan, uang kas dan iuran sukarela.")
+    st.info("🎯 **Rencana Fitur:** Transparansi uang kas dan iuran sukarela.")
 
 # --- F. ADMIN PANEL ---
 elif st.session_state.menu_aktif == "Admin Panel":
