@@ -81,18 +81,35 @@ with st.sidebar:
 # --- 3. LOGIKA HALAMAN ---
 
 if st.session_state.menu_aktif == "Home":
-    st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
-    st.markdown('<p class="quote-text">"Menyambung Kisah, Mempererat Persaudaraan. Jarak boleh membentang, waktu boleh berlalu, namun ikatan kita tetap satu."</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-quote">Mari jadikan kenangan masa sekolah sebagai energi untuk terus bergerak, berdampak, dan berkarya di bidang masing-masing.</p>', unsafe_allow_html=True)
-    st.markdown('<h3 style="text-align:center; color:#b8860b; margin-top:-10px;">Satu almamater, sejuta karya, selamanya saudara</h3>', unsafe_allow_html=True)
-    
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
-        if st.button("📝 Daftar Anggota Baru", use_container_width=True): pindah("Admin Panel")
-    with col_btn2:
-        if st.button("🔍 Lihat Database Anggota", use_container_width=True): pindah("Database Alumni")
+    # Banner Welcome
+st.markdown("""
+    <div style="background-color: #fff3cd; padding: 10px; border-radius: 5px; text-align: center; border: 1px solid #ffeeba; margin-bottom: 20px;">
+        👈 <b>Tips:</b> Klik ikon <b>">"</b> di pojok kiri atas untuk menu lengkap!
+    </div>
+""", unsafe_allow_html=True)    
+    # ... (bagian quote tetap sama) ...
 
     st.write("---")
+    st.subheader("📍 Menu Navigasi Utama")
+    st.info("Gunakan tombol di bawah ini atau klik ikon panah (>) di pojok kiri atas untuk menu lainnya.")
+
+    # Membuat grid tombol yang ramah tampilan HP
+    col_nav1, col_nav2 = st.columns(2)
+    with col_nav1:
+        if st.button("🔍 Cari Data Alumni", use_container_width=True, type="primary"):
+            pindah("Database Alumni")
+        if st.button("🗓️ Jadwal Agenda", use_container_width=True):
+            # Jika ingin langsung scroll ke bawah, bisa gunakan st.markdown anchors
+            pass 
+            
+    with col_nav2:
+        if st.button("🌹 In Memoriam", use_container_width=True, type="primary"):
+            pindah("In Memoriam")
+        if st.button("⚙️ Admin Panel", use_container_width=True):
+            pindah("Admin Panel")
+
+    st.write("---")
+    # ... (lanjut ke bagian Agenda dan Dokumentasi) ...
     st.subheader("🗓️ Agenda Kegiatan (Mendatang)")
     conn = sqlite3.connect('alumni.db')
     df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda", conn)
