@@ -7,13 +7,14 @@ import streamlit.components.v1 as components
 from datetime import datetime
 
 # --- 1. SETUP FOLDER & DATABASE ---
-for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam', 'static/music']:
+for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
 def init_db():
     conn = sqlite3.connect('alumni.db')
     c = conn.cursor()
+    # Pastikan tabel data_anggota memiliki kolom lengkap sesuai permintaan
     c.execute('''CREATE TABLE IF NOT EXISTS data_anggota (
                     foto_profile TEXT, nama TEXT, user_id TEXT PRIMARY KEY, 
                     password TEXT, kelas_1 TEXT, kelas_2 TEXT, kelas_3 TEXT, alamat TEXT)''')
@@ -38,7 +39,7 @@ def get_image_base64(path):
             return f"data:image/png;base64,{base64.b64encode(img_file.read()).decode()}"
     except: return None
 
-# --- 2. NAVIGASI SIDEBAR ---
+# --- 2. NAVIGASI SIDEBAR & TEMA WARNA ---
 st.set_page_config(page_title="Alumni SMPN 4 Cirebon 86", layout="wide")
 
 st.markdown("""
@@ -71,22 +72,15 @@ with st.sidebar:
 if st.session_state.menu_aktif == "Home":
     st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;box-shadow: 2px 2px 10px rgba(0,0,0,0.1);"><h1>Welcome Home, SEMPAT 86! 🏫</h1></div>', unsafe_allow_html=True)
     
-    # Fungsi Musik Latar (Perbaikan Error FileNotFound)
-    musik_path = "static/music/lagu_kenangan.mp3"
-    if os.path.exists(musik_path):
-        with open(musik_path, "rb") as f:
-            m_bytes = f.read()
-            m_b64 = base64.b64encode(m_bytes).decode()
-            st.markdown(f'<audio autoplay loop><source src="data:audio/mp3;base64,{m_b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
-            st.caption("🎵 Musik latar aktif...")
-    else:
-        st.info("💡 Tip: Upload file 'lagu_kenangan.mp3' ke folder static/music/ agar musik menyala.")
-
     st.markdown("""
         <div style="text-align:center; padding:30px 20px; font-family: 'Times New Roman', serif; background: rgba(255,255,255,0.4); border-radius:15px; margin-top:10px;">
-            <p style="font-size:24px; color:#b8860b; font-style:italic; font-weight:bold;">
-                "Menyambung Kisah, Mempererat Persaudaraan."
+            <p style="font-size:24px; color:#b8860b; font-style:italic; font-weight:bold; margin-bottom:10px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
+                "Menyambung Kisah, Mempererat Persaudaraan. Jarak boleh membentang, waktu boleh berlalu, namun ikatan kita tetap satu."
             </p>
+            <p style="font-size:18px; color:#333333; line-height:1.8; max-width:850px; margin:auto; font-weight: 500;">
+                Mari jadikan kenangan masa sekolah sebagai energi untuk terus bergerak, berdampak, dan berkarya di bidang masing-masing. Karena sebaik-baiknya alumni adalah yang kehadirannya memberi manfaat bagi sesama.
+            </p>
+            <h2 style="color:#b8860b; font-style:italic; margin-top:20px; font-weight:bold;">Satu almamater, sejuta karya, selamanya saudara</h2>
         </div>
     """, unsafe_allow_html=True)
     
@@ -100,16 +94,15 @@ if st.session_state.menu_aktif == "Home":
     st.write("---")
     st.subheader("🗓️ Agenda Kegiatan")
     conn = sqlite3.connect('alumni.db')
+    # Mengambil data agenda dan diurutkan berdasarkan tanggal
     df_ag = pd.read_sql_query("SELECT tanggal, kegiatan, lokasi FROM data_agenda ORDER BY tanggal ASC", conn)
-    
     if not df_ag.empty:
-        # Perbaikan Error Tanggal: Menggunakan errors='coerce' agar baris bermasalah tidak bikin aplikasi mati
-        df_ag['tanggal'] = pd.to_datetime(df_ag['tanggal'], errors='coerce').dt.strftime('%d %B %Y')
-        # Hilangkan baris yang tanggalnya benar-benar rusak/kosong
-        df_ag = df_ag.dropna(subset=['tanggal'])
+        # Mengubah format tampilan agar enak dibaca (DD-MM-YYYY)
+        df_ag['tanggal'] = pd.to_datetime(df_ag['tanggal']).dt.strftime('%d-%m-%Y')
         st.table(df_ag)
+    else:
+        st.info("Belum ada agenda kegiatan terdekat.")
     
-    # Slideshow & Komentar tetap sesuai kode matang Bapak
     st.write("---")
     st.subheader("📸 Dokumentasi Kegiatan")
     df_ev = pd.read_sql_query("SELECT DISTINCT deskripsi FROM data_events", conn)
@@ -120,6 +113,19 @@ if st.session_state.menu_aktif == "Home":
         if imgs:
             slides = "".join([f'<div class="mySlides fade"><img src="{i}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for i in imgs])
             components.html(f'<div class="slideshow-container">{slides}</div><script>let sIdx=0;function showS(){{let s=document.getElementsByClassName("mySlides");for(let i=0;i<s.length;i++)s[i].style.display="none";sIdx++;if(sIdx>s.length)sIdx=1;if(s[sIdx-1])s[sIdx-1].style.display="block";setTimeout(showS,3000)}}showS();</script>', height=460)
+
+            st.write("---")
+            st.markdown(f"### 💬 Komentar: {pilihan_ev}")
+            df_k = pd.read_sql_query("SELECT waktu, nama_penulis, isi_komentar FROM data_komentar WHERE event_deskripsi = ? ORDER BY id DESC", conn, params=(pilihan_ev,))
+            if not df_k.empty: st.table(df_k)
+            
+            with st.expander("Tulis Komentar"):
+                with st.form("f_kom", clear_on_submit=True):
+                    n_k = st.text_input("Nama")
+                    i_k = st.text_area("Komentar")
+                    if st.form_submit_button("Kirim"):
+                        conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)", (pilihan_ev, n_k, i_k, datetime.now().strftime("%d-%m-%Y")))
+                        conn.commit(); st.rerun()
     conn.close()
 
 # --- B. DATABASE ALUMNI ---
@@ -132,42 +138,109 @@ elif st.session_state.menu_aktif == "Database Alumni":
         df_db['foto_profile'] = df_db['foto_profile'].apply(get_image_base64)
         st.data_editor(df_db, column_config={"foto_profile": st.column_config.ImageColumn("Foto")}, use_container_width=True, hide_index=True)
 
-# --- C. ADMIN PANEL ---
+# --- C. IN MEMORIAM ---
+elif st.session_state.menu_aktif == "In Memoriam":
+    st.markdown('<div style="background:#424242;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>🌹 In Memoriam Sempat 86</h1></div>', unsafe_allow_html=True)
+    st.write("")
+    conn = sqlite3.connect('alumni.db')
+    df_mem = pd.read_sql_query("SELECT * FROM data_memoriam ORDER BY id DESC", conn)
+    conn.close()
+    if not df_mem.empty:
+        cols = st.columns(3)
+        for i, row in df_mem.iterrows():
+            with cols[i % 3]:
+                img = get_image_base64(row['foto'])
+                if img: st.image(img, use_container_width=True)
+                st.subheader(row['nama'])
+                st.caption(f"Wafat: {row['tanggal_wafat']}")
+                st.write(row['keterangan'])
+                st.write("---")
+
+# --- D. NETWORKING ---
+elif st.session_state.menu_aktif == "Networking":
+    st.title("🤝 Networking Alumni")
+    st.write("---")
+    st.warning("⚠️ Halaman ini dalam pengembangan.")
+    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis antar alumni, lowongan kerja, dan bursa keahlian rekan-rekan SEMPAT 86.")
+
+# --- E. DONASI ---
+elif st.session_state.menu_aktif == "Donasi":
+    st.title("💰 Donasi Paguyuban")
+    st.write("---")
+    st.warning("⚠️ Halaman ini dalam pengembangan.")
+    st.info("🎯 **Rencana Fitur:** Transparansi uang kas, donasi sosial untuk rekan yang membutuhkan, dan iuran sukarela.")
+
+# --- F. ADMIN PANEL ---
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
     t1, t2, t3 = st.tabs(["📸 Dokumentasi", "🗓️ Agenda", "🌹 In Memoriam"])
     
+    with t1:
+        with st.form("up_doc", clear_on_submit=True):
+            f = st.file_uploader("Upload Foto Dokumentasi", accept_multiple_files=True)
+            e = st.text_input("Nama Event")
+            if st.form_submit_button("Simpan Dokumentasi") and f and e:
+                conn = sqlite3.connect('alumni.db')
+                for pic in f:
+                    p = f"static/img_events/{pic.name}"
+                    with open(p, "wb") as save: save.write(pic.getbuffer())
+                    conn.execute("INSERT INTO data_events (path_foto, deskripsi) VALUES (?,?)", (p, e))
+                conn.commit(); conn.close(); st.success("Dokumentasi Berhasil Disimpan!"); st.rerun()
+
     with t2:
         with st.form("up_age", clear_on_submit=True):
-            tgl_pick = st.date_input("Pilih Tanggal")
+            tgl_pick = st.date_input("Pilih Tanggal") # Input Kalender
             keg = st.text_input("Kegiatan")
             lok = st.text_input("Lokasi")
             if st.form_submit_button("Simpan Agenda"):
                 conn = sqlite3.connect('alumni.db')
                 conn.execute("INSERT INTO data_agenda (tanggal, kegiatan, lokasi) VALUES (?,?,?)", (str(tgl_pick), keg, lok))
-                conn.commit(); conn.close(); st.success("Agenda Disimpan!"); st.rerun()
+                conn.commit(); conn.close(); st.success("Agenda Berhasil Disimpan!"); st.rerun()
 
-# --- D. FORM PENDAFTARAN ---
+    with t3:
+        with st.form("up_mem", clear_on_submit=True):
+            m_nama = st.text_input("Nama Rekan")
+            m_tgl = st.text_input("Tanggal Wafat")
+            m_ket = st.text_area("Keterangan")
+            m_foto = st.file_uploader("Upload Foto", type=['jpg','png','jpeg'])
+            if st.form_submit_button("Simpan In Memoriam"):
+                if m_nama and m_foto:
+                    fname = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{m_foto.name}"
+                    p = f"static/img_memoriam/{fname}"
+                    with open(p, "wb") as save: save.write(m_foto.getbuffer())
+                    conn = sqlite3.connect('alumni.db')
+                    conn.execute("INSERT INTO data_memoriam (foto, nama, tanggal_wafat, keterangan) VALUES (?,?,?,?)", (p, m_nama, m_tgl, m_ket))
+                    conn.commit(); conn.close(); st.success("Data Disimpan!"); st.rerun()
+
+# --- G. FORM PENDAFTARAN (LENGKAP) ---
 elif st.session_state.menu_aktif == "Form Pendaftaran":
-    st.title("📝 Form Pendaftaran")
+    st.title("📝 Form Pendaftaran Anggota")
     with st.form("reg", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            n = st.text_input("Nama")
-            u = st.text_input("User ID")
+            n = st.text_input("Nama Lengkap")
+            u = st.text_input("User ID (Username)")
             p = st.text_input("Password", type="password")
-            almt = st.text_area("Alamat")
+            almt = st.text_area("Alamat Lengkap")
         with col2:
-            k1 = st.text_input("Kelas 1")
+            k1 = st.text_input("Kelas 1 (Contoh: 1A)")
             k2 = st.text_input("Kelas 2")
             k3 = st.text_input("Kelas 3")
-            f_prof = st.file_uploader("Photo Profile", type=['jpg','png','jpeg'])
+            f_prof = st.file_uploader("Upload Photo Profile", type=['jpg','png','jpeg'])
             
-        if st.form_submit_button("Daftar"):
+        if st.form_submit_button("Daftar Sekarang"):
             path_p = ""
             if f_prof:
                 path_p = f"static/img_profile/{u}_{f_prof.name}"
                 with open(path_p, "wb") as f: f.write(f_prof.getbuffer())
+            
             conn = sqlite3.connect('alumni.db')
-            conn.execute("INSERT INTO data_anggota VALUES (?,?,?,?,?,?,?,?)", (path_p, n, u, p, k1, k2, k3, almt))
-            conn.commit(); conn.close(); st.success("Berhasil!"); pindah("Home")
+            try:
+                conn.execute("INSERT INTO data_anggota VALUES (?,?,?,?,?,?,?,?)", (path_p, n, u, p, k1, k2, k3, almt))
+                conn.commit()
+                st.success("Pendaftaran Berhasil!")
+                pindah("Home")
+            except sqlite3.IntegrityError:
+                st.error("User ID sudah digunakan, silakan pilih ID lain.")
+            finally:
+                conn.close()
