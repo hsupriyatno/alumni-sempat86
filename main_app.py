@@ -212,12 +212,49 @@ elif st.session_state.menu_aktif == "Admin Panel":
                     conn.commit(); conn.close(); st.success("Data In Memoriam Disimpan!"); st.rerun()
 
 elif st.session_state.menu_aktif == "Form Pendaftaran":
-    st.title("📝 Form Pendaftaran")
-    with st.form("reg"):
-        n = st.text_input("Nama")
-        u = st.text_input("User ID")
-        p = st.text_input("Password", type="password")
-        if st.form_submit_button("Daftar"):
-            conn = sqlite3.connect('alumni.db')
-            conn.execute("INSERT INTO data_anggota (nama, user_id, password) VALUES (?,?,?)", (n, u, p))
-            conn.commit(); conn.close(); st.success("Berhasil!"); pindah("Home")
+    st.title("📝 Form Pendaftaran Alumni")
+    st.write("Silakan lengkapi data diri Anda untuk menyambung silaturahmi.")
+    
+    with st.form("reg", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            n = st.text_input("Nama Lengkap")
+            u = st.text_input("User ID (untuk login)")
+            p = st.text_input("Password", type="password")
+            almt = st.text_area("Alamat / Domisili Saat Ini")
+            
+        with col2:
+            k1 = st.selectbox("Kelas 1 (Dulu)", ["A", "B", "C", "D", "E", "F", "G", "H"])
+            k2 = st.selectbox("Kelas 2 (Dulu)", ["A", "B", "C", "D", "E", "F", "G", "H"])
+            k3 = st.selectbox("Kelas 3 (Dulu)", ["A", "B", "C", "D", "E", "F", "G", "H"])
+            foto = st.file_uploader("Upload Foto Profil", type=['jpg', 'jpeg', 'png'])
+
+        submit = st.form_submit_button("Daftar Sekarang", use_container_width=True)
+
+        if submit:
+            if n and u and p:
+                path_foto = ""
+                if foto:
+                    # Simpan foto ke folder static/img_profile
+                    fname = f"{u}_{foto.name}"
+                    path_foto = f"static/img_profile/{fname}"
+                    with open(path_foto, "wb") as f:
+                        f.write(foto.getbuffer())
+                
+                try:
+                    conn = sqlite3.connect('alumni.db')
+                    conn.execute("""
+                        INSERT INTO data_anggota 
+                        (foto_profile, nama, user_id, password, kelas_1, kelas_2, kelas_3, alamat) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (path_foto, n, u, p, k1, k2, k3, almt))
+                    conn.commit()
+                    conn.close()
+                    st.success(f"Selamat {n}, pendaftaran Anda berhasil!")
+                    # Beri jeda sebentar lalu balik ke Home
+                    st.balloons()
+                except sqlite3.IntegrityError:
+                    st.error("User ID sudah terdaftar, silakan gunakan ID lain.")
+            else:
+                st.warning("Mohon isi Nama, User ID, dan Password.")
