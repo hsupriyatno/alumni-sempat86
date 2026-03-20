@@ -183,7 +183,7 @@ elif st.session_state.menu_aktif == "In Memoriam":
 # --- D. NETWORKING ---
 elif st.session_state.menu_aktif == "Networking":
     st.title("🤝 Networking Alumni")
-    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis antar alumni dan bursa keahlian rekan-rekan SEMPAT 86.")
+    st.info("🎯 **Rencana Fitur:** Kolaborasi bisnis antar alumni dan pengembangan UMKM rekan-rekan SEMPAT 86.")
 
 # --- E. DONASI ---
 elif st.session_state.menu_aktif == "Donasi":
