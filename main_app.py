@@ -82,7 +82,7 @@ with st.sidebar:
 
 if st.session_state.menu_aktif == "Home":
     # Banner Welcome
-st.markdown("""
+    st.markdown("""
     <div style="background-color: #fff3cd; padding: 10px; border-radius: 5px; text-align: center; border: 1px solid #ffeeba; margin-bottom: 20px;">
         👈 <b>Tips:</b> Klik ikon <b>">"</b> di pojok kiri atas untuk menu lengkap!
     </div>
