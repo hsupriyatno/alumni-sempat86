@@ -6,6 +6,20 @@ import base64
 import streamlit.components.v1 as components
 from datetime import datetime
 from PIL import Image, ExifTags # <-- TAMBAHKAN BARIS INI
+
+import sqlite3
+with sqlite3.connect('alumni.db') as conn:
+    conn.execute('''CREATE TABLE IF NOT EXISTS data_cerpen 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  judul TEXT, penulis TEXT, poster TEXT, 
+                  sinopsis TEXT, isi_lengkap TEXT, tanggal TEXT)''')
+
+# --- TARUH DI BARIS PALING ATAS (SETELAH IMPORT) ---
+if 'user_nama' not in st.session_state:
+    st.session_state.user_nama = "Visitor" # Default awal sebelum login
+
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 db_path = os.path.join(os.path.dirname(__file__), 'data_anggota.db')
 conn = sqlite3.connect(db_path)
 # --- 1. SETUP FOLDER & DATABASE ---
@@ -114,8 +128,21 @@ def init_db():
                   event TEXT, 
                   jumlah REAL, 
                   kategori TEXT, 
-                  tipe TEXT)''')            
+                  tipe TEXT)''')
 
+    c.execute('''CREATE TABLE IF NOT EXISTS data_cerpen 
+                (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                judul TEXT, 
+                penulis TEXT, 
+                poster TEXT, 
+                sinopsis TEXT, 
+                isi_lengkap TEXT,
+                tanggal TEXT)''') 
+
+    c.execute('''CREATE TABLE IF NOT EXISTS data_komentar 
+                (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                event_deskripsi TEXT, nama_penulis TEXT, 
+                isi_komentar TEXT, waktu TEXT)''')
     # --- PENGAMAN: Jika database sudah ada, tambahkan kolom pekerjaan secara manual ---
     try:
         c.execute("ALTER TABLE data_anggota ADD COLUMN pekerjaan TEXT")
@@ -204,6 +231,7 @@ with st.sidebar:
     if st.button("🌹 In Memoriam", use_container_width=True): pindah("In Memoriam")
     if st.button("🤝 Networking", use_container_width=True): pindah("Networking")
     if st.button("💰 Donasi & Kas", use_container_width=True): pindah("Donasi")
+    if st.button("👥 Seputar Sempat-86", use_container_width=True): pindah("Seputar Sempat-86")
     st.write("---")
     if st.button("⚙️ Admin Panel", use_container_width=True): pindah("Admin Panel")
 
@@ -294,13 +322,14 @@ if st.session_state.menu_aktif == "Home":
 elif st.session_state.menu_aktif == "Admin Panel":
     st.title("⚙️ Admin Panel")
     
-    # KUNCI UTAMA: Harus ada 6 nama di dalam kurung ini
-    t1, t2, t3, t4, t5, t6 = st.tabs([
+    # KUNCI UTAMA: Harus ada 7 nama di dalam kurung ini
+    t1, t2, t3, t4, t5, t6, t7 = st.tabs([
         "👥 Alumni", 
         "📸 Dokumentasi", 
         "🗓️ Agenda", 
         "🌹 In Memoriam", 
-        "💰 Input Keuangan", 
+        "💰 Input Keuangan",
+        "👥 Seputar Sempat-86", 
         "🛠️ Kelola & Edit Data"
     ])
     
@@ -399,7 +428,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
                     conn.close()
                     st.success("Data Berhasil Dicatat!")
                     st.rerun()
-    with t6:
+    with t7:
         st.subheader("🛠️ Pusat Kendali (Edit & Hapus Data)")
         
 # 1. Pilihan Kategori Kelola (Posisinya sejajar di bawah judul)
@@ -415,6 +444,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
         "Dokumentasi": "data_events",
         "In Memoriam": "data_memoriam",
         "Keuangan": "data_keuangan",
+        "Seputar Sempat-86": "data_cerpen",
         "Marketplace": "marketplace"
     }
 
@@ -471,87 +501,119 @@ elif st.session_state.menu_aktif == "Admin Panel":
             )
 
         st.success("💡 Tip: Simpan backup di folder laptop sesuai tanggal hari ini.")
-
-elif st.session_state.menu_aktif == "Database Alumni":
-    st.title("🔍 Database Alumni")
-    # --- 1. INISIALISASI STATE ---
-    if 'pilihan_zoom' not in st.session_state:
-        st.session_state.pilihan_zoom = None
-
-    conn = sqlite3.connect('alumni.db')
-    df_db = pd.read_sql_query("SELECT foto_profile, nama, kelas_1, kelas_2, kelas_3, alamat FROM data_anggota ORDER BY nama ASC", conn)
-    conn.close()
-
-    if not df_db.empty:
-        # --- 2. STATISTIK (SELALU TAMPIL) ---
-        def render_stat_row(label, col_name):
-            st.write(f"**{label}**")
-            counts = df_db[col_name].value_counts().reindex(LIST_KELAS[1:], fill_value=0)
-            cols = st.columns(7)
-            for i, (kls, jml) in enumerate(counts.items()):
-                with cols[i]:
-                    st.markdown(f"""
-                        <div style="background: white; padding: 5px; border-radius: 5px; border: 1px solid #e0e0e0; 
-                                    text-align: center; box-shadow: 1px 1px 3px rgba(0,0,0,0.05); line-height: 1.2;">
-                            <p style="margin: 0; font-size: 11px; color: #666;">Kelas {kls}</p>
-                            <b style="font-size: 18px; color: #2b5298;">{jml}</b>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-        st.subheader("📊 Statistik Alumni")
-        render_stat_row("Statistik Kelas 1", "kelas_1")
-        st.write("") 
-        render_stat_row("Statistik Kelas 2", "kelas_2")
-        st.write("")
-        render_stat_row("Statistik Kelas 3", "kelas_3")
+    with t6:
+    # --- FORM INPUT CERPEN BARU ---
+        st.markdown("---")
+        st.subheader("✍️ Pasang Cerita Pendek (Cerpen) Baru")
+        with st.expander("Buka Form Input Cerpen"):
+            with st.form("form_tambah_cerpen", clear_on_submit=True):
+                j_cp = st.text_input("Judul Cerpen")
+                p_cp = st.text_input("Penulis", value=st.session_state.user_nama)
+                s_cp = st.text_area("Sinopsis (Muncul di halaman depan galeri)")
+                isi_cp = st.text_area("Isi Cerita Lengkap", height=300)
+                file_poster = st.file_uploader("Upload Poster/Cover Cerpen (Format JPG/PNG)", type=['jpg','png','jpeg'])
         
-        st.write("---")
+                submit_cp = st.form_submit_button("🚀 Tayangkan Cerpen")
+        
+                if submit_cp:
+                    if j_cp and isi_cp and file_poster:
+                        # 1. Simpan file gambar poster ke folder static
+                        nama_file_poster = f"static/poster_{j_cp.replace(' ', '_').lower()}.png"
+                        with open(nama_file_poster, "wb") as f:
+                            f.write(file_poster.getbuffer())
+                
+                        # 2. Simpan data ke tabel data_cerpen
+                        tgl_input = datetime.now().strftime("%d/%m/%Y")
+                        with sqlite3.connect('alumni.db') as conn:
+                            conn.execute("""
+                                INSERT INTO data_cerpen (judul, penulis, poster, sinopsis, isi_lengkap, tanggal) 
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            """, (j_cp, p_cp, nama_file_poster, s_cp, isi_cp, tgl_input))
+                
+                        st.success(f"Berhasil! Cerpen '{j_cp}' sudah tayang di Galeri.")
+                        st.rerun()
+                    else:
+                        st.error("Mohon lengkapi Judul, Isi Cerita, dan Poster ya Pak.")
+elif st.session_state.menu_aktif == "Database Alumni":
+            st.title("🔍 Database Alumni")
+            # --- 1. INISIALISASI STATE ---
+            if 'pilihan_zoom' not in st.session_state:
+                st.session_state.pilihan_zoom = None
 
-        # --- 3. FILTER (SELALU TAMPIL) ---
-        st.subheader("🔎 Cari & Filter")
-        c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-        search_nama = c1.text_input("Cari Nama Alumni")
-        f_k1 = c2.selectbox("Filter Kelas 1", options=["Semua"] + LIST_KELAS[1:])
-        f_k2 = c3.selectbox("Filter Kelas 2", options=["Semua"] + LIST_KELAS[1:])
-        f_k3 = c4.selectbox("Filter Kelas 3", options=["Semua"] + LIST_KELAS[1:])
+            conn = sqlite3.connect('alumni.db')
+            df_db = pd.read_sql_query("SELECT foto_profile, nama, kelas_1, kelas_2, kelas_3, alamat FROM data_anggota ORDER BY nama ASC", conn)
+            conn.close()
 
-        # Proses Filter Data
-        df_f = df_db.copy()
-        if search_nama:
-            df_f = df_f[df_f['nama'].str.contains(search_nama, case=False, na=False)]
-        if f_k1 != "Semua": df_f = df_f[df_f['kelas_1'] == f_k1]
-        if f_k2 != "Semua": df_f = df_f[df_f['kelas_2'] == f_k2]
-        if f_k3 != "Semua": df_f = df_f[df_f['kelas_3'] == f_k3]
+            if not df_db.empty:
+                # --- 2. STATISTIK (SELALU TAMPIL) ---
+                def render_stat_row(label, col_name):
+                    st.write(f"**{label}**")
+                    counts = df_db[col_name].value_counts().reindex(LIST_KELAS[1:], fill_value=0)
+                    cols = st.columns(7)
+                    for i, (kls, jml) in enumerate(counts.items()):
+                        with cols[i]:
+                            st.markdown(f"""
+                                <div style="background: white; padding: 5px; border-radius: 5px; border: 1px solid #e0e0e0; 
+                                            text-align: center; box-shadow: 1px 1px 3px rgba(0,0,0,0.05); line-height: 1.2;">
+                                    <p style="margin: 0; font-size: 11px; color: #666;">Kelas {kls}</p>
+                                    <b style="font-size: 18px; color: #2b5298;">{jml}</b>
+                                </div>
+                            """, unsafe_allow_html=True)
 
-        st.write("---")
+                st.subheader("📊 Statistik Alumni")
+                render_stat_row("Statistik Kelas 1", "kelas_1")
+                st.write("") 
+                render_stat_row("Statistik Kelas 2", "kelas_2")
+                st.write("")
+                render_stat_row("Statistik Kelas 3", "kelas_3")
+        
+                st.write("---")
+
+                # --- 3. FILTER (SELALU TAMPIL) ---
+                st.subheader("🔎 Cari & Filter")
+                c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+                search_nama = c1.text_input("Cari Nama Alumni")
+                f_k1 = c2.selectbox("Filter Kelas 1", options=["Semua"] + LIST_KELAS[1:])
+                f_k2 = c3.selectbox("Filter Kelas 2", options=["Semua"] + LIST_KELAS[1:])
+                f_k3 = c4.selectbox("Filter Kelas 3", options=["Semua"] + LIST_KELAS[1:])
+
+                # Proses Filter Data
+                df_f = df_db.copy()
+                if search_nama:
+                    df_f = df_f[df_f['nama'].str.contains(search_nama, case=False, na=False)]
+                if f_k1 != "Semua": df_f = df_f[df_f['kelas_1'] == f_k1]
+                if f_k2 != "Semua": df_f = df_f[df_f['kelas_2'] == f_k2]
+                if f_k3 != "Semua": df_f = df_f[df_f['kelas_3'] == f_k3]
+
+                st.write("---")
 
 # --- 4. LOGIKA SWITCHING (TABEL vs DETAIL FOTO DENGAN FIX OTOMATIS ORIENTASI) ---
         
         # JIKA ADA FOTO YANG DIKLIK (ZOOM MODE)
-        if st.session_state.pilihan_zoom is not None:
-            data_terpilih = st.session_state.pilihan_zoom
+            if st.session_state.pilihan_zoom is not None:
+                data_terpilih = st.session_state.pilihan_zoom
             
-            with st.container(border=True):
-                # Baris Tombol Kembali & Nama
-                col_back, col_title = st.columns([1, 4])
-                if col_back.button("⬅️ Kembali", use_container_width=True):
-                    st.session_state.pilihan_zoom = None
-                    st.rerun()
-                col_title.markdown(f"### 👤 {data_terpilih['nama']}")
+                with st.container(border=True):
+                    # Baris Tombol Kembali & Nama
+                    col_back, col_title = st.columns([1, 4])
+                    if col_back.button("⬅️ Kembali", use_container_width=True):
+                        st.session_state.pilihan_zoom = None
+                        st.rerun()
+                    col_title.markdown(f"### 👤 {data_terpilih['nama']}")
 
-                # Baris Foto & Info
-                c1, c2, c3 = st.columns([1, 2, 1])
-                with c2:
-                    img_path = data_terpilih['foto_profile']
-                    # Menggunakan fungsi base64 yang sudah kita perbaiki orientasinya
-                    img_modal = get_image_base64(img_path)
+                    # Baris Foto & Info
+                    c1, c2, c3 = st.columns([1, 2, 1])
+                    with c2:
+                        img_path = data_terpilih['foto_profile']
+                        # Menggunakan fungsi base64 yang sudah kita perbaiki orientasinya
+                        img_modal = get_image_base64(img_path)
                     
-                    if img_modal:
-                        # --- HAPUS CSS ROTATE TADI ---
-                        # Kita gunakan foto base64 yang sudah diputar otomatis orientasinya
-                        st.image(img_modal, use_container_width=True)
-                    else:
-                        st.warning("Foto tidak ditemukan.")
+                        if img_modal:
+                            # --- HAPUS CSS ROTATE TADI ---
+                            # Kita gunakan foto base64 yang sudah diputar otomatis orientasinya
+                            st.image(img_modal, use_container_width=True)
+                        else:
+                            st.warning("Foto tidak ditemukan.")
                     
                     # Info Kelas & Alamat (Rapi & Indah)
                     st.markdown(f"""
@@ -562,28 +624,28 @@ elif st.session_state.menu_aktif == "Database Alumni":
                     
                     st.write(f"🏠 **Alamat:** {data_terpilih['alamat']}")
         # JIKA TIDAK ADA YANG DIKLIK (TABLE MODE - TETAP STABIL)
-        else:
-            st.write(f"Menampilkan **{len(df_f)}** alumni.")
+            else:
+                st.write(f"Menampilkan **{len(df_f)}** alumni.")
             
-            # Siapkan data untuk tabel (Tabel tidak perlu dirotasi, agar tetap sesuai aslinya)
-            df_tampil = df_f.copy()
-            df_tampil['foto_profile'] = df_tampil['foto_profile'].apply(get_image_base64)
+                # Siapkan data untuk tabel (Tabel tidak perlu dirotasi, agar tetap sesuai aslinya)
+                df_tampil = df_f.copy()
+                df_tampil['foto_profile'] = df_tampil['foto_profile'].apply(get_image_base64)
 
-            event_klik = st.dataframe(
-                df_tampil, 
-                column_config={
-                    "foto_profile": st.column_config.ImageColumn("Klik untuk Zoom", width="small"),
-                }, 
-                use_container_width=True, 
-                hide_index=True,
-                on_select="rerun",
-                selection_mode="single-row"
-            )
+                event_klik = st.dataframe(
+                    df_tampil, 
+                    column_config={
+                        "foto_profile": st.column_config.ImageColumn("Klik untuk Zoom", width="small"),
+                    }, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    on_select="rerun",
+                    selection_mode="single-row"
+                )
 
-            if len(event_klik.selection.rows) > 0:
-                idx_pilih = event_klik.selection.rows[0]
-                st.session_state.pilihan_zoom = df_f.iloc[idx_pilih]
-                st.rerun()
+                if len(event_klik.selection.rows) > 0:
+                    idx_pilih = event_klik.selection.rows[0]
+                    st.session_state.pilihan_zoom = df_f.iloc[idx_pilih]
+                    st.rerun()
 elif st.session_state.menu_aktif == "In Memoriam":
     st.title("🌹 In Memoriam")
     conn = sqlite3.connect('alumni.db')
@@ -809,3 +871,92 @@ elif st.session_state.menu_aktif == "Networking":
                     detail_produk(row, list_img)
     else:
         st.info("Belum ada iklan usaha yang ditayangkan. Yuk, jadi yang pertama!")
+
+elif st.session_state.menu_aktif == "Seputar Sempat-86":
+    st.title("🎭 Seputar Sempat-86")
+    
+    # --- BAGIAN ATAS: CHAT ROOM ---
+    st.subheader("💬 Pojok Ngobrol Alumni")
+    with st.container(border=True):
+        # Gunakan tabel data_komentar yang sudah ada atau buat tabel chat khusus
+        with sqlite3.connect('alumni.db') as conn:
+            df_chat = pd.read_sql_query("SELECT * FROM data_komentar WHERE event_deskripsi = 'CHAT_ROOM' ORDER BY id DESC LIMIT 10", conn)
+        
+        # Tampilan Pesan Chat
+        chat_placeholder = st.empty()
+        with chat_placeholder.container():
+            for _, msg in df_chat[::-1].iterrows():
+                st.markdown(f"**{msg['nama_penulis']}**: {msg['isi_komentar']}  \n<small style='color:gray;'>{msg['waktu']}</small>", unsafe_allow_html=True)
+                st.write("---")
+        
+        # Input Chat
+        with st.form("form_chat", clear_on_submit=True):
+            pesan = st.text_input("Ketik pesan...", placeholder=f"tulis pesan disini, {st.session_state.user_nama}!")
+            if st.form_submit_button("Kirim"):
+                if pesan:
+                    waktu = datetime.now().strftime("%H:%M")
+                    with sqlite3.connect('alumni.db') as conn:
+                        conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
+                                     ('CHAT_ROOM', st.session_state.user_nama, pesan, waktu))
+                    st.rerun()
+
+    st.write("##") # Spasi antar bagian
+
+# --- BAGIAN BAWAH: KOLEKSI CERPEN ---
+    st.write("---")
+    st.subheader("📚 Galeri Cerita Pendek")
+
+# 1. Ambil data dari database
+    with sqlite3.connect('alumni.db') as conn:
+        df_cerpen = pd.read_sql_query("SELECT * FROM data_cerpen ORDER BY id DESC", conn)
+
+# 2. Cek apakah ada data cerpen
+    if not df_cerpen.empty:
+        cols = st.columns(2)
+    
+        for i, row in df_cerpen.iterrows():
+            cp_id = row['id']
+        
+            with cols[i % 2].container(border=True):
+            # --- TAMPILAN KARTU (CARD) ---
+                img_base64 = get_image_base64(row['poster'])
+                if img_base64:
+                    st.image(img_base64, use_container_width=True)
+                
+                st.markdown(f"### {row['judul']}")
+                st.caption(f"✍️ Oleh: {row['penulis']}")
+                st.write(f"*{row['sinopsis']}*")
+            
+            # --- FUNGSI MODAL DIALOG ---
+                @st.dialog(f"📖 {row['judul']}", width="large")
+                def baca_cerita_lengkap(data):
+                # Info Penulis
+                    st.markdown(f"**Karya: {data['penulis']}**")
+                    st.write("---")
+                
+                # TAMPILAN ISI CERITA (Format Novel Rapi)
+                    st.markdown(f"""
+                    <div style="
+                        white-space: pre-wrap; 
+                        font-family: 'Georgia', serif; 
+                        font-size: 18px; 
+                        line-height: 1.8; 
+                        text-align: justify; 
+                        color: #2c3e50;
+                        background-color: #fdfdfd;
+                        padding: 15px;
+                        border-radius: 10px;
+                        ">
+{data['isi_lengkap']}
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                st.write("---")
+                
+
+
+            # --- TOMBOL PEMICU DIALOG ---
+            if st.button("📖 Baca Selengkapnya", key=f"btn_{cp_id}"):
+                baca_cerita_lengkap(row)
+else:
+    st.info("Belum ada cerpen yang ditayangkan.")
