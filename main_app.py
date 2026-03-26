@@ -434,7 +434,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
 # 1. Pilihan Kategori Kelola (Posisinya sejajar di bawah judul)
         pilih_kategori = st.radio(
         "Pilih Data yang Ingin Dikelola:",
-        ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Marketplace"],
+        ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86" "Marketplace"],
         horizontal=True, key="radio_kelola"
     )
 
@@ -534,6 +534,56 @@ elif st.session_state.menu_aktif == "Admin Panel":
                         st.rerun()
                     else:
                         st.error("Mohon lengkapi Judul, Isi Cerita, dan Poster ya Pak.")
+        # --- PENGELOLAAN / EDIT & DELETE CERPEN ---
+        st.markdown("---")
+        st.subheader("⚙️ Kelola Galeri Cerita Pendek")
+
+        with sqlite3.connect('alumni.db') as conn:
+            df_manage = pd.read_sql_query("SELECT id, judul, penulis, tanggal FROM data_cerpen ORDER BY id DESC", conn)
+
+        if not df_manage.empty:
+            # 1. Pilih Cerpen yang ingin diolah
+            list_judul = df_manage['judul'].tolist()
+            pilih_edit = st.selectbox("Pilih Judul Cerpen untuk di Edit/Hapus:", list_judul)
+    
+            # Ambil data lengkap cerpen yang dipilih
+            data_sel = df_manage[df_manage['judul'] == pilih_edit].iloc[0]
+            id_sel = int(data_sel['id'])
+    
+            col_ed1, col_ed2 = st.columns(2)
+    
+            with col_ed1:
+                with st.expander(f"📝 Edit Cerpen: {pilih_edit}"):
+                    # Ambil detail dari database untuk mengisi form edit
+                    with sqlite3.connect('alumni.db') as conn:
+                        curr = pd.read_sql_query(f"SELECT * FROM data_cerpen WHERE id={id_sel}", conn).iloc[0]
+            
+                    with st.form("form_edit_cerpen"):
+                        new_judul = st.text_input("Judul Cerpen", value=curr['judul'])
+                        new_penulis = st.text_input("Penulis", value=curr['penulis'])
+                        new_sinopsis = st.text_area("Sinopsis", value=curr['sinopsis'])
+                        new_isi = st.text_area("Isi Lengkap", value=curr['isi_lengkap'], height=250)
+                
+                        if st.form_submit_button("Simpan Perubahan"):
+                            with sqlite3.connect('alumni.db') as conn:
+                                conn.execute("""
+                                    UPDATE data_cerpen 
+                                    SET judul=?, penulis=?, sinopsis=?, isi_lengkap=? 
+                                    WHERE id=?
+                                """, (new_judul, new_penulis, new_sinopsis, new_isi, id_sel))
+                            st.success("Perubahan berhasil disimpan!")
+                            st.rerun()
+
+            with col_ed2:
+                with st.expander(f"🗑️ Hapus Cerpen"):
+                    st.warning(f"Apakah Anda yakin ingin menghapus cerpen '{pilih_edit}'?")
+                    if st.button("Ya, Hapus Permanen", key="btn_del_cp"):
+                        with sqlite3.connect('alumni.db') as conn:
+                            conn.execute(f"DELETE FROM data_cerpen WHERE id={id_sel}")
+                        st.error("Cerpen telah dihapus.")
+                        st.rerun()
+        else:
+            st.info("Belum ada cerpen untuk dikelola.")
 elif st.session_state.menu_aktif == "Database Alumni":
             st.title("🔍 Database Alumni")
             # --- 1. INISIALISASI STATE ---
@@ -956,7 +1006,7 @@ elif st.session_state.menu_aktif == "Seputar Sempat-86":
 
 
             # --- TOMBOL PEMICU DIALOG ---
-            if st.button("📖 Baca Selengkapnya", key=f"btn_{cp_id}"):
+            if st.button(f"📖 Baca Selengkapnya: {row['judul']}", key=f"btn_cerita_{row['id']}"):
                 baca_cerita_lengkap(row)
 else:
     st.info("Belum ada cerpen yang ditayangkan.")
