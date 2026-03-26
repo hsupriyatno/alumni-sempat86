@@ -997,6 +997,7 @@ elif st.session_state.menu_aktif == "Seputar Sempat-86":
                         padding: 15px;
                         border-radius: 10px;
                         ">
+
 {data['isi_lengkap']}
                     </div>
                 """, unsafe_allow_html=True)
@@ -1006,7 +1007,16 @@ elif st.session_state.menu_aktif == "Seputar Sempat-86":
 
 
             # --- TOMBOL PEMICU DIALOG ---
-            if st.button(f"📖 Baca Selengkapnya: {row['judul']}", key=f"btn_cerita_{row['id']}"):
-                baca_cerita_lengkap(row)
+            if st.button(f"📖 Baca Selengkapnya: {row['judul']}", key=f"btn_cerita_{row['id']}", use_container_width=True):
+                            @st.dialog(row['judul'], width="large")
+                            def baca_cerita(isi, author):
+                                st.markdown(f"**Karya: {author}**")
+                                st.write("---")
+                                st.write(isi)
+                                if st.button("Tutup"):
+                                    st.rerun()
+                            baca_cerita(row['isi_lengkap'], row['penulis'])
 else:
     st.info("Belum ada cerpen yang ditayangkan.")
+
+    
