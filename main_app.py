@@ -434,7 +434,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
 # 1. Pilihan Kategori Kelola (Posisinya sejajar di bawah judul)
         pilih_kategori = st.radio(
         "Pilih Data yang Ingin Dikelola:",
-        ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86" "Marketplace"],
+        ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86", "Marketplace"],
         horizontal=True, key="radio_kelola"
     )
 
