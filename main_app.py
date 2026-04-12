@@ -73,25 +73,19 @@ def login_page():
                         st.success("Akun Berhasil Dibuat! Silakan pindah ke tab 'Masuk'.")
                     except sqlite3.IntegrityError:
                         st.error("Username sudah digunakan, cari nama lain pak.")
-# --- SETELAH BERHASIL LOGIN ---
-if st.session_state.logged_in:
-    # 1. Judul dan Info User di Sidebar
-    st.sidebar.title("🏫 SEMPAT 86")
-    st.sidebar.info(f"👤 Login sebagai: {st.session_state.user_nama}")
-    
-    st.sidebar.divider() # Garis pembatas agar rapi
 
-    # 2. NAVIGASI MANUAL (PENTING: Ini agar menu muncul lagi)
-    st.sidebar.page_link("main_app.py", label="Home", icon="🏠")
-    st.sidebar.page_link("pages/voting.py", label="Voting Ketua", icon="🗳️")
-    st.sidebar.page_link("pages/hasil_voting.py", label="Hasil Voting", icon="📊")
+if not st.session_state.logged_in:
+    login_page()
+    st.stop()  # SANGAT PENTING: Ini yang mengunci agar menu utama tidak muncul sebelum login
 
-    st.sidebar.divider()
+# --- SEMUA KODE HALAMAN UTAMA BAPAK (sidebar, menu_aktif, dll) MULAI DI SINI ---
+st.sidebar.title("🏫 SEMPAT 86")
 
-    # 3. Tombol Logout di paling bawah
-    if st.sidebar.button("🚪 Keluar / Logout", use_container_width=True):
-        st.session_state.logged_in = False
-        st.rerun()
+# Tambahkan tombol logout di sidebar agar Bapak bisa mengetes bolak-balik
+if st.sidebar.button("🚪 Keluar / Logout"):
+    st.session_state.logged_in = False
+    st.rerun()
+
 
 # --- TARUH DI BARIS PALING ATAS (SETELAH IMPORT) ---
 if 'user_nama' not in st.session_state:
