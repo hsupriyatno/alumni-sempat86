@@ -7,12 +7,84 @@ import streamlit.components.v1 as components
 from datetime import datetime
 from PIL import Image, ExifTags # <-- TAMBAHKAN BARIS INI
 
-import sqlite3
-with sqlite3.connect('alumni.db') as conn:
-    conn.execute('''CREATE TABLE IF NOT EXISTS data_cerpen 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  judul TEXT, penulis TEXT, poster TEXT, 
-                  sinopsis TEXT, isi_lengkap TEXT, tanggal TEXT)''')
+# --- PONDASI DATABASE (Tambahkan ini agar tabel otomatis terbuat) ---
+def init_auth_db():
+    with sqlite3.connect('alumni.db') as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS data_users 
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                         username TEXT UNIQUE, 
+                         password TEXT, 
+                         nama_lengkap TEXT, 
+                         role TEXT)''')
+init_auth_db()
+
+# Inisialisasi status login jika belum ada
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user_nama = "Visitor"
+
+def login_page():
+    st.title("🔐 Portal Alumni Sempat-86")
+    
+    # Membuat dua tab: Login dan Daftar
+    tab1, tab2 = st.tabs(["Masuk", "Daftar Akun Baru"])
+    
+    with tab1:
+        with st.form("form_login"):
+            user = st.text_input("Username / Nama")
+            pwd = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Masuk", use_container_width=True)
+            
+            if submit:
+                with sqlite3.connect('alumni.db') as conn:
+                    # Cek user di database
+                    res = conn.execute("SELECT * FROM data_users WHERE username = ? AND password = ?", (user, pwd)).fetchone()
+                
+                if res:
+                    st.session_state.logged_in = True
+                    st.session_state.user_nama = res[1] # Mengambil username dari db
+                    st.success(f"Selamat Datang Kembali, {user}!")
+                    st.rerun()
+                else:
+                    st.error("Username atau Password salah")
+
+    with tab2:
+        st.info("Silakan isi data berikut untuk membuat akun alumni.")
+        with st.form("form_daftar"):
+            new_user = st.text_input("Username (Tanpa Spasi)", placeholder="contoh: herisupriyatno")
+            new_nama = st.text_input("Nama Lengkap", placeholder="Hery Supriyatno")
+            new_pwd = st.text_input("Buat Password", type="password")
+            conf_pwd = st.text_input("Ulangi Password", type="password")
+            
+            submit_daftar = st.form_submit_button("Daftar Sekarang", use_container_width=True)
+            
+            if submit_daftar:
+                if new_pwd != conf_pwd:
+                    st.error("Password tidak cocok!")
+                elif len(new_pwd) < 5:
+                    st.error("Password minimal 5 karakter.")
+                elif new_user == "":
+                    st.error("Username tidak boleh kosong.")
+                else:
+                    try:
+                        with sqlite3.connect('alumni.db') as conn:
+                            conn.execute("INSERT INTO data_users (username, password, nama_lengkap, role) VALUES (?,?,?,?)",
+                                         (new_user, new_pwd, new_nama, 'alumni'))
+                        st.success("Akun Berhasil Dibuat! Silakan pindah ke tab 'Masuk'.")
+                    except sqlite3.IntegrityError:
+                        st.error("Username sudah digunakan, cari nama lain pak.")
+if not st.session_state.logged_in:
+    login_page()
+    st.stop()  # SANGAT PENTING: Ini yang mengunci agar menu utama tidak muncul sebelum login
+
+# --- SEMUA KODE HALAMAN UTAMA BAPAK (sidebar, menu_aktif, dll) MULAI DI SINI ---
+st.sidebar.title("🏫 SEMPAT 86")
+
+# Tambahkan tombol logout di sidebar agar Bapak bisa mengetes bolak-balik
+if st.sidebar.button("🚪 Keluar / Logout"):
+    st.session_state.logged_in = False
+    st.rerun()
+
 
 # --- TARUH DI BARIS PALING ATAS (SETELAH IMPORT) ---
 if 'user_nama' not in st.session_state:
@@ -22,52 +94,11 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 db_path = os.path.join(os.path.dirname(__file__), 'data_anggota.db')
 conn = sqlite3.connect(db_path)
-# --- 1. SETUP FOLDER & DATABASE ---
-for folder in ['static/img_profile', 'static/img_events', 'static/img_memoriam']:
-    if not os.path.exists(folder):
-        os.makedirs(folder)
 
-conn = sqlite3.connect('alumni.db')
-cursor = conn.cursor()
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS marketplace (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nama_produk TEXT,
-        harga TEXT,
-        whatsapp TEXT,
-        deskripsi TEXT,
-        foto_produk TEXT, -- Ini untuk menyimpan string base64
-        nama_alumni TEXT
-    )
-''')
-conn.commit()
-conn.close()
 def init_db():
     import sqlite3
 
 # Menghubungkan ke database
-    conn = sqlite3.connect('alumni.db')
-    c = conn.cursor()
-
-    try:
-        conn.execute("ALTER TABLE data_keuangan ADD COLUMN event TEXT")
-        conn.commit()
-    except:
-        # Jika kolom sudah ada, abaikan errornya
-        pass
-
-# Perintah membuat tabel marketplace jika belum ada
-    c.execute('''CREATE TABLE IF NOT EXISTS marketplace 
-             (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-              nama_alumni TEXT, 
-              nama_produk TEXT, 
-              harga TEXT, 
-              deskripsi TEXT, 
-              foto_produk TEXT, 
-              no_wa TEXT)''')
-
-    conn.commit()
-    conn.close()
     conn = sqlite3.connect('data_anggota.db') # Pastikan nama file ini yang Anda inginkan
     c = conn.cursor()
     # 1. Tabel Anggota
@@ -143,6 +174,14 @@ def init_db():
                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 event_deskripsi TEXT, nama_penulis TEXT, 
                 isi_komentar TEXT, waktu TEXT)''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS data_users 
+             (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+              username TEXT UNIQUE, 
+              password TEXT, 
+              nama_lengkap TEXT,
+              role TEXT)''')
+
     # --- PENGAMAN: Jika database sudah ada, tambahkan kolom pekerjaan secara manual ---
     try:
         c.execute("ALTER TABLE data_anggota ADD COLUMN pekerjaan TEXT")
@@ -1019,4 +1058,3 @@ elif st.session_state.menu_aktif == "Seputar Sempat-86":
 else:
     st.info("Belum ada cerpen yang ditayangkan.")
 
-    
