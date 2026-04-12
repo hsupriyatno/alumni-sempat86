@@ -2,8 +2,7 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 import socket
-
-st.set_page_config(page_title="Voting Ketua Sempat-86", page_icon="🗳️")
+# Tambahkan ini sebentar untuk menghapus semua sampah data percobaan
 
 # Inisialisasi Database (Hanya tabel voting)
 def init_vote_db():
@@ -31,8 +30,15 @@ with sqlite3.connect('alumni.db') as conn:
                             (user_aktif, ip_client)).fetchone()
 
 if cek_voter:
-    st.success(f"Terima kasih, {user_aktif}. Suara Anda sudah terekam.")
+    # Cek apakah yang memilih sebelumnya adalah user yang sama (index 1 adalah user_id)
+    if cek_voter[1] == user_aktif:
+        st.success(f"Terima kasih {user_aktif}, suara Anda sudah kami simpan.")
+    else:
+        # Jika user_id berbeda tapi IP sama, tampilkan peringatan blokir perangkat
+        st.warning("⚠️ Maaf, perangkat ini sudah digunakan untuk memilih. Satu perangkat hanya untuk satu suara.")
+
 else:
+    # Jika belum ada data (User belum pilih & IP belum terdaftar)
     with st.form("form_voting"):
         pilihan = st.radio("Pilih Calon Ketua:", ["Kandidat A", "Kandidat B", "Kandidat C"])
         if st.form_submit_button("Kirim Suara Sah"):
