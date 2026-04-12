@@ -8,15 +8,6 @@ from datetime import datetime
 from PIL import Image, ExifTags # <-- TAMBAHKAN BARIS INI
 
 # --- PONDASI DATABASE (Tambahkan ini agar tabel otomatis terbuat) ---
-def init_auth_db():
-    with sqlite3.connect('alumni.db') as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS data_users 
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                         username TEXT UNIQUE, 
-                         password TEXT, 
-                         nama_lengkap TEXT, 
-                         role TEXT)''')
-init_auth_db()
 
 # Inisialisasi status login jika belum ada
 if 'logged_in' not in st.session_state:
@@ -74,9 +65,7 @@ def login_page():
                     except sqlite3.IntegrityError:
                         st.error("Username sudah digunakan, cari nama lain pak.")
 
-if not st.session_state.logged_in:
-    login_page()
-    st.stop()  # SANGAT PENTING: Ini yang mengunci agar menu utama tidak muncul sebelum login
+
 
 # --- SEMUA KODE HALAMAN UTAMA BAPAK (sidebar, menu_aktif, dll) MULAI DI SINI ---
 st.sidebar.title("🏫 SEMPAT 86")
@@ -181,6 +170,7 @@ def init_db():
               username TEXT UNIQUE, 
               password TEXT, 
               nama_lengkap TEXT,
+              nomor_wa_aktif TEXT,
               role TEXT)''')
 
     # --- PENGAMAN: Jika database sudah ada, tambahkan kolom pekerjaan secara manual ---
@@ -471,10 +461,10 @@ elif st.session_state.menu_aktif == "Admin Panel":
     with t7:
         st.subheader("🛠️ Pusat Kendali (Edit & Hapus Data)")
         
-# 1. Pilihan Kategori Kelola (Posisinya sejajar di bawah judul)
+    # 1. Pilihan Kategori Kelola (Posisinya sejajar di bawah judul)
         pilih_kategori = st.radio(
         "Pilih Data yang Ingin Dikelola:",
-        ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86", "Marketplace"],
+        ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86", "Marketplace", "Pemilihan Ketua Alumni", "Hasil Pemilihan Ketua Alumni"],
         horizontal=True, key="radio_kelola"
     )
 
@@ -485,20 +475,33 @@ elif st.session_state.menu_aktif == "Admin Panel":
         "In Memoriam": "data_memoriam",
         "Keuangan": "data_keuangan",
         "Seputar Sempat-86": "data_cerpen",
-        "Marketplace": "marketplace"
+        "Marketplace": "marketplace",
+        "Pemilihan Ketua Alumni": "data_users",
+        "Hasil Pemilihan Ketua Alumni": "data_voting"
     }
 
     # 2. Tabel Editor (Untuk Edit & Hapus)
-        st.subheader(f"📝 Edit Data {pilih_kategori}")
-        with sqlite3.connect('alumni.db') as conn:
-            df_edit = pd.read_sql_query(f"SELECT * FROM {tabel_map[pilih_kategori]}", conn)
-            df_up = st.data_editor(df_edit, use_container_width=True, num_rows="dynamic", key=f"editor_{pilih_kategori}")
+    st.subheader(f"📝 Edit Data {pilih_kategori}")
 
-        if st.button(f"Simpan Perubahan {pilih_kategori}", type="primary"):
+    with sqlite3.connect('alumni.db') as conn:
+        # Ambil data terbaru
+        df_edit = pd.read_sql_query(f"SELECT * FROM {tabel_map[pilih_kategori]}", conn)
+    
+        # Tampilkan editor dengan num_rows="dynamic" memungkinkan Bapak hapus baris di UI
+        df_up = st.data_editor(df_edit, use_container_width=True, num_rows="dynamic", key=f"editor_{pilih_kategori}")
+
+    if st.button(f"💾 Simpan & Perbarui Tabel {pilih_kategori}", type="primary"):
+        try:
             with sqlite3.connect('alumni.db') as conn:
+                # Logika 'replace' akan menulis ulang tabel sesuai dengan apa yang ada di df_up
+                # Jadi kalau Bapak hapus baris di tabel, baris itu juga hilang di database
                 df_up.to_sql(tabel_map[pilih_kategori], conn, if_exists='replace', index=False)
-            st.success(f"Data {pilih_kategori} Berhasil Diperbarui!")
+            
+            st.success(f"✅ Data {pilih_kategori} Berhasil Diperbarui/Dihapus!")
+            st.balloons()
             st.rerun()
+        except Exception as e:
+            st.error(f"Gagal memperbarui data: {e}")
 
     # --- BAGIAN PUSAT BACKUP (DATABASE & FOTO) ---
         st.markdown("---")
