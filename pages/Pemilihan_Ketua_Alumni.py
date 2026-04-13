@@ -82,13 +82,22 @@ st.subheader("📝 Penjaringan Calon Ketua")
 with st.expander("➕ Klik di sini untuk mengusulkan nama calon"):
     with st.form("form_nominasi", clear_on_submit=True):
         nama_usulan = st.text_input("Masukkan Nama Calon yang Diusulkan:")
+        
         if st.form_submit_button("Usulkan Nama"):
-            if nama_usulan.strip():
+            nama_cek = nama_usulan.lower().strip() # Ubah ke huruf kecil untuk pengecekan
+            
+            # --- LOGIKA PENOLAKAN PANITIA ---
+            if any(x in nama_cek for x in ["hery", "heri", "cimot"]):
+                st.error("🚫 Maaf, nama tersebut terdeteksi sebagai Panitia Pemilihan dan tidak dapat dicalonkan.")
+            
+            elif nama_usulan.strip():
                 with sqlite3.connect('alumni.db') as conn:
                     conn.execute("INSERT INTO data_penjaringan (nama_calon, pengusul) VALUES (?,?)", 
                                  (nama_usulan.title().strip(), st.session_state.user_nama))
                 st.success(f"Nama '{nama_usulan.title()}' berhasil diusulkan!")
                 st.rerun()
+            else:
+                st.warning("Silakan masukkan nama calon terlebih dahulu.")
 
 # --- B. FITUR VOTING ---
 st.divider()
