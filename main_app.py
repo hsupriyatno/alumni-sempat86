@@ -6,7 +6,7 @@ import base64
 import streamlit.components.v1 as components
 from datetime import datetime
 from PIL import Image, ExifTags # <-- TAMBAHKAN BARIS INI
-
+import socket
 # --- PONDASI DATABASE (Tambahkan ini agar tabel otomatis terbuat) ---
 
 # Inisialisasi status login jika belum ada
@@ -85,111 +85,51 @@ if 'logged_in' not in st.session_state:
 db_path = os.path.join(os.path.dirname(__file__), 'data_anggota.db')
 conn = sqlite3.connect(db_path)
 
+# --- 1. DEFINISI DATABASE & STRUKTUR TABEL ---
 def init_db():
-    import sqlite3
+    # Gunakan SATU nama database saja agar data tidak terpencar
+    with sqlite3.connect('alumni.db') as conn:
+        c = conn.cursor()
+        
+        # Tabel User (Untuk Login & Voting)
+        c.execute('''CREATE TABLE IF NOT EXISTS data_users 
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                      username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, 
+                      nomor_wa_aktif TEXT, role TEXT)''')
+        
+        # Tabel Penjaringan (Daftar Calon)
+        c.execute('''CREATE TABLE IF NOT EXISTS data_penjaringan 
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                      nama_calon TEXT, pengusul TEXT)''')
 
-# Menghubungkan ke database
-    conn = sqlite3.connect('data_anggota.db') # Pastikan nama file ini yang Anda inginkan
-    c = conn.cursor()
-    # 1. Tabel Anggota
-    c.execute('''CREATE TABLE IF NOT EXISTS data_anggota (
-                    foto_profile TEXT, 
-                    nama TEXT, 
-                    user_id TEXT PRIMARY KEY,
-                    password TEXT, 
-                    pekerjaan TEXT,  -- Tambahkan kolom ini di sini
-                    kelas_1 TEXT, 
-                    kelas_2 TEXT, 
-                    kelas_3 TEXT, 
-                    alamat TEXT)''')
-    
-    # 2. Tabel Event
-    c.execute('''CREATE TABLE IF NOT EXISTS data_events (
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                 path_foto TEXT, 
-                 deskripsi TEXT, 
-                 bulan_tahun TEXT)''')
-    
-    # 3. Tabel Komentar
-    c.execute('''CREATE TABLE IF NOT EXISTS data_komentar (
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                 event_deskripsi TEXT, 
-                 nama_penulis TEXT, 
-                 isi_komentar TEXT, 
-                 waktu TEXT)''')
-    
-    # 4. Tabel Agenda
-    c.execute('''CREATE TABLE IF NOT EXISTS data_agenda (
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                 tanggal TEXT, 
-                 kegiatan TEXT, 
-                 lokasi TEXT)''')
-    
-    # 5. Tabel Memoriam
-    c.execute('''CREATE TABLE IF NOT EXISTS data_memoriam (
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                 foto TEXT, 
-                 nama TEXT, 
-                 tanggal_wafat TEXT, 
-                 keterangan TEXT)''')
+        # Tabel Voting (Hasil Suara)
+        c.execute('''CREATE TABLE IF NOT EXISTS data_voting 
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                      user_id TEXT, ip_address TEXT, pilihan TEXT, waktu TEXT)''')
+        
+        # Tabel Anggota (Database Utama)
+        c.execute('''CREATE TABLE IF NOT EXISTS data_anggota 
+                     (foto_profile TEXT, nama TEXT, user_id TEXT PRIMARY KEY,
+                      password TEXT, pekerjaan TEXT, kelas_1 TEXT, kelas_2 TEXT, 
+                      kelas_3 TEXT, alamat TEXT)''')
+        
+        # Tabel-tabel pendukung lainnya (Event, Agenda, dll)
+        c.execute('CREATE TABLE IF NOT EXISTS data_events (id INTEGER PRIMARY KEY AUTOINCREMENT, path_foto TEXT, deskripsi TEXT, bulan_tahun TEXT)')
+        c.execute('CREATE TABLE IF NOT EXISTS data_komentar (id INTEGER PRIMARY KEY AUTOINCREMENT, event_deskripsi TEXT, nama_penulis TEXT, isi_komentar TEXT, waktu TEXT)')
+        c.execute('CREATE TABLE IF NOT EXISTS data_agenda (id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, kegiatan TEXT, lokasi TEXT)')
+        c.execute('CREATE TABLE IF NOT EXISTS data_memoriam (id INTEGER PRIMARY KEY AUTOINCREMENT, foto TEXT, nama TEXT, tanggal_wafat TEXT, keterangan TEXT)')
+        c.execute('CREATE TABLE IF NOT EXISTS data_cerpen (id INTEGER PRIMARY KEY AUTOINCREMENT, judul TEXT, penulis TEXT, poster TEXT, sinopsis TEXT, isi_lengkap TEXT, tanggal TEXT)')
+        c.execute('CREATE TABLE IF NOT EXISTS data_keuangan (id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, keterangan TEXT, event TEXT, jumlah REAL, kategori TEXT, tipe TEXT)')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS marketplace 
-                (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                nama_alumni TEXT, 
-                nama_produk TEXT, 
-                harga TEXT, 
-                deskripsi TEXT, 
-                foto_produk TEXT, 
-                no_wa TEXT)''')
+        # PENGAMAN KOLOM (Jika ada update di tengah jalan)
+        try:
+            c.execute("ALTER TABLE data_anggota ADD COLUMN pekerjaan TEXT")
+        except: pass
+        try:
+            c.execute("ALTER TABLE data_keuangan ADD COLUMN event TEXT")
+        except: pass
 
-    c.execute('''CREATE TABLE IF NOT EXISTS data_keuangan 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  tanggal TEXT, 
-                  keterangan TEXT, 
-                  event TEXT, 
-                  jumlah REAL, 
-                  kategori TEXT, 
-                  tipe TEXT)''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS data_cerpen 
-                (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                judul TEXT, 
-                penulis TEXT, 
-                poster TEXT, 
-                sinopsis TEXT, 
-                isi_lengkap TEXT,
-                tanggal TEXT)''') 
-
-    c.execute('''CREATE TABLE IF NOT EXISTS data_komentar 
-                (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                event_deskripsi TEXT, nama_penulis TEXT, 
-                isi_komentar TEXT, waktu TEXT)''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS data_users 
-             (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-              username TEXT UNIQUE, 
-              password TEXT, 
-              nama_lengkap TEXT,
-              nomor_wa_aktif TEXT,
-              role TEXT)''')
-
-    # --- PENGAMAN: Jika database sudah ada, tambahkan kolom pekerjaan secara manual ---
-    try:
-        c.execute("ALTER TABLE data_anggota ADD COLUMN pekerjaan TEXT")
-    except sqlite3.OperationalError:
-        pass # Jika sudah ada kolomnya, abaikan errornya
-    try:
-        # Menambahkan kolom event ke tabel data_keuangan
-        c.execute("ALTER TABLE data_keuangan ADD COLUMN event TEXT")
-        conn.commit()
-    except:
-        # Jika sudah ada, kode ini akan dilewati otomatis
-        pass
-        conn.close() 
-
-# Panggil fungsi untuk memastikan tabel terbuat
-    conn = sqlite3.connect('alumni.db')
-    c = conn.cursor()
+# Panggil fungsi init tepat setelah didefinisikan
 init_db()
 
 def get_image_base64(path):
