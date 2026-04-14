@@ -79,7 +79,7 @@ with sqlite3.connect('alumni.db') as conn:
 
 # --- A. FITUR PENJARINGAN ---
 st.subheader("📝 Penjaringan Calon Ketua")
-with st.expander("➕ Klik di sini untuk mengusulkan nama calon"):
+with st.expander("➕ Klik di sini untuk mengusulkan nama calon jika belum ada di daftar", expanded=False):
     with st.form("form_nominasi", clear_on_submit=True):
         nama_usulan = st.text_input("Masukkan Nama Calon yang Diusulkan:")
         
