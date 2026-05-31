@@ -246,8 +246,49 @@ if st.session_state.menu_aktif == "Home":
         df_f = pd.read_sql_query("SELECT path_foto FROM data_events WHERE deskripsi = ?", conn, params=(pilihan_ev,))
         imgs = [get_image_base64(p) for p in df_f['path_foto'] if get_image_base64(p)]
         if imgs:
-            slides = "".join([f'<div class="mySlides fade"><img src="{i}" style="width:100%; height:450px; object-fit:cover; border-radius:15px;"></div>' for i in imgs])
-            js_code = f'<div class="slideshow-container">{slides}</div><script>let slideIndex = 0; function showSlides() {{ let slides = document.getElementsByClassName("mySlides"); for (let i = 0; i < slides.length; i++) {{ slides[i].style.display = "none"; }} slideIndex++; if (slideIndex > slides.length) {{slideIndex = 1}} if (slides[slideIndex-1]) {{ slides[slideIndex-1].style.display = "block"; }} setTimeout(showSlides, 3000); }} showSlides();</script>'
+            # --- PERBAIKAN CSS SLIDER BIAR FLEKSIBEL & FIT TO PICTURE ---
+            slides = "".join([f'<div class="mySlides fade"><img src="{i}" class="responsive-img"></div>' for i in imgs])
+            
+            js_code = f"""
+            <style>
+                .slideshow-container {{
+                    position: relative;
+                    max-width: 100%;
+                    margin: auto;
+                    background: #000; /* Latar belakang hitam jika foto portrait */
+                    border-radius: 15px;
+                    overflow: hidden;
+                }}
+                .responsive-img {{
+                    width: 100%;
+                    height: 450px;
+                    object-fit: contain; /* Memastikan gambar utuh tidak terpotong */
+                }}
+                /* --- RESPONSIVE UNTUK HP --- */
+                @media only screen and (max-width: 600px) {{
+                    .responsive-img {{
+                        height: auto; /* Di HP tinggi mengikuti proporsi asli gambar */
+                        max-height: 350px;
+                    }}
+                }}
+            </style>
+            
+            <div class="slideshow-container">{slides}</div>
+            
+            <script>
+                let slideIndex = 0; 
+                function showSlides() {{ 
+                    let slides = document.getElementsByClassName("mySlides"); 
+                    for (let i = 0; i < slides.length; i++) {{ slides[i].style.display = "none"; }} 
+                    slideIndex++; 
+                    if (slideIndex > slides.length) {{slideIndex = 1}} 
+                    if (slides[slideIndex-1]) {{ slides[slideIndex-1].style.display = "block"; }} 
+                    setTimeout(showSlides, 3000); 
+                }} 
+                showSlides();
+            </script>
+            """
+            # Berikan ruang tinggi komponen HTML yang fleksibel
             components.html(js_code, height=460)
         
         st.write("---")
