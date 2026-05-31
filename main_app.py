@@ -67,24 +67,6 @@ def login_page():
 
 
 
-# --- SEMUA KODE HALAMAN UTAMA BAPAK (sidebar, menu_aktif, dll) MULAI DI SINI ---
-st.sidebar.title("🏫 SEMPAT 86")
-
-# Tambahkan tombol logout di sidebar agar Bapak bisa mengetes bolak-balik
-if st.sidebar.button("🚪 Keluar / Logout"):
-    st.session_state.logged_in = False
-    st.rerun()
-
-
-# --- TARUH DI BARIS PALING ATAS (SETELAH IMPORT) ---
-if 'user_nama' not in st.session_state:
-    st.session_state.user_nama = "Visitor" # Default awal sebelum login
-
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-db_path = os.path.join(os.path.dirname(__file__), 'data_anggota.db')
-conn = sqlite3.connect(db_path)
-
 # --- 1. DEFINISI DATABASE & STRUKTUR TABEL ---
 def init_db():
     # Gunakan SATU nama database saja agar data tidak terpencar
@@ -404,7 +386,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
     # 1. Pilihan Kategori Kelola (Posisinya sejajar di bawah judul)
         pilih_kategori = st.radio(
         "Pilih Data yang Ingin Dikelola:",
-        ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86", "Marketplace", "Pemilihan Ketua Alumni", "Hasil Pemilihan Ketua Alumni"],
+        ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86", "Marketplace"],
         horizontal=True, key="radio_kelola"
     )
 
@@ -415,9 +397,8 @@ elif st.session_state.menu_aktif == "Admin Panel":
         "In Memoriam": "data_memoriam",
         "Keuangan": "data_keuangan",
         "Seputar Sempat-86": "data_cerpen",
-        "Marketplace": "marketplace",
-        "Pemilihan Ketua Alumni": "data_users",
-        "Hasil Pemilihan Ketua Alumni": "data_voting"
+        "Marketplace": "marketplace"
+     
     }
 
     # 2. Tabel Editor (Untuk Edit & Hapus)
