@@ -333,10 +333,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
             n_a = st.text_input("Nama Lengkap")
             u_i = st.text_input("Username/ID")
             p_w = st.text_input("Password", type="password")
-            
-            # --- BARIS BARU UNTUK PEKERJAAN ---
-            p_k = st.text_input("Aktivitas""  (Opsional, bisa diisi atau dikosongkan)") 
-            # ----------------------------------
+            p_k = st.text_input("Aktivitas (Opsional, bisa diisi atau dikosongkan)") 
 
             k1, k2, k3 = st.columns(3)
             kl1 = k1.selectbox("Kelas 1", options=LIST_KELAS)
@@ -348,17 +345,13 @@ elif st.session_state.menu_aktif == "Admin Panel":
                 if n_a and u_i:
                     path_p = f"static/img_profile/{f_p.name}" if f_p else ""
                     if f_p:
-                        # Pastikan folder static/img_profile sudah dibuat ya Pak
                         with open(path_p, "wb") as f: f.write(f_p.getbuffer())
                     
                     conn = sqlite3.connect('alumni.db')
-                    # Perhatikan tanda tanya (?) ditambah satu menjadi 9 buah
-                    # Urutan: foto, nama, user_id, password, kelas1, kelas2, kelas3, alamat, pekerjaan
                     conn.execute("""
                         INSERT OR REPLACE INTO data_anggota 
                         VALUES (?,?,?,?,?,?,?,?,?)
                     """, (path_p, n_a, u_i, p_w, kl1, kl2, kl3, almt, p_k))
-                    
                     conn.commit()
                     conn.close()
                     st.success(f"Data {n_a} Berhasil Tersimpan!")
@@ -397,84 +390,69 @@ elif st.session_state.menu_aktif == "Admin Panel":
                     conn.execute("INSERT INTO data_memoriam (foto, nama, tanggal_wafat, keterangan) VALUES (?,?,?,?)", (p, m_n, str(m_t), m_k))
                     conn.commit(); conn.close(); st.success("Data Memoriam Disimpan!"); st.rerun()
 
-    with t5: # Tab Input Keuangan
+    with t5: 
         st.subheader("💰 Input Mutasi Keuangan")
         with st.form("input_keuangan", clear_on_submit=True):
             col_k1, col_k2 = st.columns(2)
             tgl_k = col_k1.date_input("Tanggal Transaksi")
             kat_k = col_k2.selectbox("Kategori", ["Kas Alumni", "Pendanaan Event", "Bantuan Sosial"])
-        
             ket_k = st.text_input("Keterangan (Contoh: Iuran, Sewa Tenda, Santunan)")
-            # Input khusus untuk Nama Event
             ev_k = st.text_input("Nama Event (Kosongkan jika bukan Pendanaan Event)")
-        
             nom_k = st.number_input("Nominal (Rp)", min_value=0, step=1000)
             tipe_k = st.radio("Tipe Transaksi", ["Masuk (Debit)", "Keluar (Kredit)"], horizontal=True)
         
             if st.form_submit_button("Simpan Data Keuangan"):
                 if ket_k and nom_k > 0:
                     conn = sqlite3.connect('alumni.db')
-                    # Tambahkan ev_k ke dalam query INSERT
                     conn.execute("INSERT INTO data_keuangan (tanggal, keterangan, event, jumlah, kategori, tipe) VALUES (?,?,?,?,?,?)",
                                 (str(tgl_k), ket_k, ev_k, nom_k, kat_k, tipe_k))
-                    conn.commit()
-                    conn.close()
-                    st.success("Data Berhasil Dicatat!")
-                    st.rerun()
+                    conn.commit(); conn.close(); st.success("Data Berhasil Dicatat!"); st.rerun()
+
     with t7:
         st.subheader("🛠️ Pusat Kendali (Edit & Hapus Data)")
         
-    # 1. Pilihan Kategori Kelola (Posisinya sejajar di bawah judul)
+        # Pilihan Kategori Kelola (Sekarang berada di dalam 'with t7')
         pilih_kategori = st.radio(
-        "Pilih Data yang Ingin Dikelola:",
-        ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86", "Marketplace"],
-        horizontal=True, key="radio_kelola"
-    )
+            "Pilih Data yang Ingin Dikelola:",
+            ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86", "Marketplace"],
+            horizontal=True, key="radio_kelola"
+        )
 
         tabel_map = {
-        "Alumni": "data_anggota",
-        "Agenda": "data_agenda",
-        "Dokumentasi": "data_events",
-        "In Memoriam": "data_memoriam",
-        "Keuangan": "data_keuangan",
-        "Seputar Sempat-86": "data_cerpen",
-        "Marketplace": "marketplace"
-     
-    }
+            "Alumni": "data_anggota",
+            "Agenda": "data_agenda",
+            "Dokumentasi": "data_events",
+            "In Memoriam": "data_memoriam",
+            "Keuangan": "data_keuangan",
+            "Seputar Sempat-86": "data_cerpen",
+            "Marketplace": "marketplace"
+        }
 
-    # 2. Tabel Editor (Untuk Edit & Hapus)
-    st.subheader(f"📝 Edit Data {pilih_kategori}")
+        # 2. Tabel Editor (Diposisikan masuk ke dalam 'with t7')
+        st.subheader(f"📝 Edit Data {pilih_kategori}")
 
-    with sqlite3.connect('alumni.db') as conn:
-        # Ambil data terbaru
-        df_edit = pd.read_sql_query(f"SELECT * FROM {tabel_map[pilih_kategori]}", conn)
-    
-        # Tampilkan editor dengan num_rows="dynamic" memungkinkan Bapak hapus baris di UI
-        df_up = st.data_editor(df_edit, use_container_width=True, num_rows="dynamic", key=f"editor_{pilih_kategori}")
+        with sqlite3.connect('alumni.db') as conn:
+            df_edit = pd.read_sql_query(f"SELECT * FROM {tabel_map[pilih_kategori]}", conn)
+            df_up = st.data_editor(df_edit, use_container_width=True, num_rows="dynamic", key=f"editor_{pilih_kategori}")
 
-    if st.button(f"💾 Simpan & Perbarui Tabel {pilih_kategori}", type="primary"):
-        try:
-            with sqlite3.connect('alumni.db') as conn:
-                # Logika 'replace' akan menulis ulang tabel sesuai dengan apa yang ada di df_up
-                # Jadi kalau Bapak hapus baris di tabel, baris itu juga hilang di database
-                df_up.to_sql(tabel_map[pilih_kategori], conn, if_exists='replace', index=False)
-            
-            st.success(f"✅ Data {pilih_kategori} Berhasil Diperbarui/Dihapus!")
-            st.balloons()
-            st.rerun()
-        except Exception as e:
-            st.error(f"Gagal memperbarui data: {e}")
+        if st.button(f"💾 Simpan & Perbarui Tabel {pilih_kategori}", type="primary"):
+            try:
+                with sqlite3.connect('alumni.db') as conn:
+                    df_up.to_sql(tabel_map[pilih_kategori], conn, if_exists='replace', index=False)
+                st.success(f"✅ Data {pilih_kategori} Berhasil Diperbarui/Dihapus!")
+                st.balloons()
+                st.rerun()
+            except Exception as e:
+                st.error(f"Gagal memperbarui data: {e}")
 
-    # --- BAGIAN PUSAT BACKUP (DATABASE & FOTO) ---
+        # --- BAGIAN PUSAT BACKUP (Database & Foto dimasukkan ke dalam 'with t7') ---
         st.markdown("---")
         st.header("💾 Pusat Backup Data Paguyuban")
         st.info("Unduh data di bawah ini secara rutin!")
 
         col_bak1, col_bak2 = st.columns(2)
-
         with col_bak1:
             st.subheader("🗄️ Backup Database (.db)")
-            # Mencari semua file database
             files_db = [f for f in os.listdir('.') if f.endswith('.db')]
             if files_db:
                 for db_file in files_db:
@@ -504,10 +482,10 @@ elif st.session_state.menu_aktif == "Admin Panel":
                 file_name="backup_foto_sempat86.zip",
                 mime="application/zip"
             )
-
         st.success("💡 Tip: Simpan backup di folder laptop sesuai tanggal hari ini.")
+
     with t6:
-    # --- FORM INPUT CERPEN BARU ---
+        # --- FORM INPUT CERPEN BARU ---
         st.markdown("---")
         st.subheader("✍️ Pasang Cerita Pendek (Cerpen) Baru")
         with st.expander("Buka Form Input Cerpen"):
@@ -589,6 +567,7 @@ elif st.session_state.menu_aktif == "Admin Panel":
                         st.rerun()
         else:
             st.info("Belum ada cerpen untuk dikelola.")
+
 elif st.session_state.menu_aktif == "Database Alumni":
             st.title("🔍 Database Alumni")
             # --- 1. INISIALISASI STATE ---
