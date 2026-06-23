@@ -65,8 +65,6 @@ def login_page():
                     except sqlite3.IntegrityError:
                         st.error("Username sudah digunakan, cari nama lain pak.")
 
-
-
 # --- 1. DEFINISI DATABASE & STRUKTUR TABEL ---
 def init_db():
     # Gunakan SATU nama database saja agar data tidak terpencar
@@ -101,18 +99,44 @@ def init_db():
         c.execute('CREATE TABLE IF NOT EXISTS data_agenda (id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, kegiatan TEXT, lokasi TEXT)')
         c.execute('CREATE TABLE IF NOT EXISTS data_memoriam (id INTEGER PRIMARY KEY AUTOINCREMENT, foto TEXT, nama TEXT, tanggal_wafat TEXT, keterangan TEXT)')
         c.execute('CREATE TABLE IF NOT EXISTS data_cerpen (id INTEGER PRIMARY KEY AUTOINCREMENT, judul TEXT, penulis TEXT, poster TEXT, sinopsis TEXT, isi_lengkap TEXT, tanggal TEXT)')
-        c.execute('CREATE TABLE IF NOT EXISTS data_keuangan (id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, keterangan TEXT, event TEXT, jumlah REAL, kategori TEXT, tipe TEXT)')
+        c.execute('CREATE TABLE IF NOT EXISTS data_keuangan (id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, donatur TEXT, keterangan TEXT, event TEXT, jumlah REAL, kategori TEXT, tipe TEXT)')
 
-        # PENGAMAN KOLOM (Jika ada update di tengah jalan)
+        # --- PENGAMAN KOLOM SAKTI (Memaksa kolom harus ada di file .db secara fisik) ---
         try:
             c.execute("ALTER TABLE data_anggota ADD COLUMN pekerjaan TEXT")
         except: pass
         try:
             c.execute("ALTER TABLE data_keuangan ADD COLUMN event TEXT")
         except: pass
+        try:
+            # Pengaman utama: Jika kolom donatur sempat hilang karena 'replace', baris ini akan mengembalikannya secara paksa
+            c.execute("ALTER TABLE data_keuangan ADD COLUMN donatur TEXT")
+        except: pass
+
+        conn.commit()
 
 # Panggil fungsi init tepat setelah didefinisikan
 init_db()
+
+def ambil_data_all_flow(filter_event=False):
+    """
+    Fungsi untuk mengambil semua data dari tabel data_keuangan secara aman.
+    """
+    import sqlite3
+    import pandas as pd
+    
+    # Query ini memastikan semua kolom yang dibutuhkan aplikasi dipanggil dengan benar
+    query = "SELECT id, tanggal, donatur, keterangan, event, jumlah, kategori, tipe FROM data_keuangan"
+    
+    try:
+        with sqlite3.connect('alumni.db') as conn:
+            df = pd.read_sql_query(query, conn)
+        return df
+    except Exception as e:
+        # Jika database bermasalah, kembalikan DataFrame kosong agar aplikasi tidak crash merah
+        import streamlit as st
+        st.error(f"Gagal mengambil data dari database: {e}")
+        return pd.DataFrame()
 
 def get_image_base64(path):
     if not path or not os.path.exists(path): return None
@@ -396,22 +420,22 @@ elif st.session_state.menu_aktif == "Admin Panel":
             col_k1, col_k2 = st.columns(2)
             tgl_k = col_k1.date_input("Tanggal Transaksi")
             kat_k = col_k2.selectbox("Kategori", ["Kas Alumni", "Pendanaan Event", "Bantuan Sosial"])
+            don_k = st.text_input("Donatur (Atau Penerima jika keluar)")
             ket_k = st.text_input("Keterangan (Contoh: Iuran, Sewa Tenda, Santunan)")
             ev_k = st.text_input("Nama Event (Kosongkan jika bukan Pendanaan Event)")
             nom_k = st.number_input("Nominal (Rp)", min_value=0, step=1000)
             tipe_k = st.radio("Tipe Transaksi", ["Masuk (Debit)", "Keluar (Kredit)"], horizontal=True)
         
             if st.form_submit_button("Simpan Data Keuangan"):
-                if ket_k and nom_k > 0:
+                if don_k and ket_k and nom_k > 0:
                     conn = sqlite3.connect('alumni.db')
-                    conn.execute("INSERT INTO data_keuangan (tanggal, keterangan, event, jumlah, kategori, tipe) VALUES (?,?,?,?,?,?)",
-                                (str(tgl_k), ket_k, ev_k, nom_k, kat_k, tipe_k))
+                    conn.execute("INSERT INTO data_keuangan (tanggal, donatur, keterangan, event, jumlah, kategori, tipe) VALUES (?,?,?,?,?,?,?)",
+                                (str(tgl_k), don_k, ket_k, ev_k, nom_k, kat_k, tipe_k))
                     conn.commit(); conn.close(); st.success("Data Berhasil Dicatat!"); st.rerun()
 
     with t7:
         st.subheader("🛠️ Pusat Kendali (Edit & Hapus Data)")
         
-        # Pilihan Kategori Kelola (Sekarang berada di dalam 'with t7')
         pilih_kategori = st.radio(
             "Pilih Data yang Ingin Dikelola:",
             ["Alumni", "Agenda", "Dokumentasi", "In Memoriam", "Keuangan", "Seputar Sempat-86", "Marketplace"],
@@ -428,61 +452,40 @@ elif st.session_state.menu_aktif == "Admin Panel":
             "Marketplace": "marketplace"
         }
 
-        # 2. Tabel Editor (Diposisikan masuk ke dalam 'with t7')
         st.subheader(f"📝 Edit Data {pilih_kategori}")
 
-        with sqlite3.connect('alumni.db') as conn:
-            df_edit = pd.read_sql_query(f"SELECT * FROM {tabel_map[pilih_kategori]}", conn)
-            df_up = st.data_editor(df_edit, use_container_width=True, num_rows="dynamic", key=f"editor_{pilih_kategori}")
+        # --- TAHAP 1: Ambil data dari DB HANYA JIKA session_state masih kosong ---
+        # Ini gunanya agar saat auto-refresh, Streamlit TIDAK mengambil data lama dari DB lagi
+        key_data = f"df_live_{pilih_kategori}"
+        
+        if key_data not in st.session_state:
+            with sqlite3.connect('alumni.db') as conn:
+                st.session_state[key_data] = pd.read_sql_query(f"SELECT * FROM {tabel_map[pilih_kategori]}", conn)
 
+        # --- TAHAP 2: Tampilkan data editor menggunakan data dari session_state ---
+        # Tambahkan parameter `key` khusus untuk editor agar perubahannya langsung direkam
+        df_up = st.data_editor(
+            st.session_state[key_data], 
+            use_container_width=True, 
+            num_rows="dynamic", 
+            key=f"editor_{pilih_kategori}"
+        )
+
+        # --- TAHAP 3: Tombol Simpan ---
         if st.button(f"💾 Simpan & Perbarui Tabel {pilih_kategori}", type="primary"):
             try:
                 with sqlite3.connect('alumni.db') as conn:
                     df_up.to_sql(tabel_map[pilih_kategori], conn, if_exists='replace', index=False)
+                
+                # Setelah sukses disimpan ke DB, hapus cache di session_state 
+                # agar saat pindah kategori/refresh berikutnya, data paling baru yang diambil
+                del st.session_state[key_data]
+                
                 st.success(f"✅ Data {pilih_kategori} Berhasil Diperbarui/Dihapus!")
                 st.balloons()
                 st.rerun()
             except Exception as e:
                 st.error(f"Gagal memperbarui data: {e}")
-
-        # --- BAGIAN PUSAT BACKUP (Database & Foto dimasukkan ke dalam 'with t7') ---
-        st.markdown("---")
-        st.header("💾 Pusat Backup Data Paguyuban")
-        st.info("Unduh data di bawah ini secara rutin!")
-
-        col_bak1, col_bak2 = st.columns(2)
-        with col_bak1:
-            st.subheader("🗄️ Backup Database (.db)")
-            files_db = [f for f in os.listdir('.') if f.endswith('.db')]
-            if files_db:
-                for db_file in files_db:
-                    with open(db_file, "rb") as f:
-                        st.download_button(
-                            label=f"📥 Download {db_file}",
-                            data=f,
-                            file_name=db_file,
-                            mime="application/octet-stream",
-                            key=f"dl_{db_file}"
-                        )
-            else:
-                st.warning("Tidak ditemukan file database.")
-
-        with col_bak2:
-            st.subheader("📸 Backup Semua Foto (.zip)")
-            import zipfile, io
-            buf = io.BytesIO()
-            with zipfile.ZipFile(buf, "w") as csv_zip:
-                for root, dirs, files in os.walk('static'):
-                    for file in files:
-                        csv_zip.write(os.path.join(root, file))
-        
-            st.download_button(
-                label="📥 Download Semua Foto (ZIP)",
-                data=buf.getvalue(),
-                file_name="backup_foto_sempat86.zip",
-                mime="application/zip"
-            )
-        st.success("💡 Tip: Simpan backup di folder laptop sesuai tanggal hari ini.")
 
     with t6:
         # --- FORM INPUT CERPEN BARU ---
@@ -546,7 +549,6 @@ elif st.session_state.menu_aktif == "Admin Panel":
                         new_penulis = st.text_input("Penulis", value=curr['penulis'])
                         new_sinopsis = st.text_area("Sinopsis", value=curr['sinopsis'])
                         new_isi = st.text_area("Isi Lengkap", value=curr['isi_lengkap'], height=250)
-                
                         if st.form_submit_button("Simpan Perubahan"):
                             with sqlite3.connect('alumni.db') as conn:
                                 conn.execute("""
@@ -621,75 +623,69 @@ elif st.session_state.menu_aktif == "Database Alumni":
 
                 st.write("---")
 
-# --- 4. LOGIKA SWITCHING (TABEL vs DETAIL FOTO DENGAN FIX OTOMATIS ORIENTASI) ---
-        
-        # JIKA ADA FOTO YANG DIKLIK (ZOOM MODE)
-            if st.session_state.pilihan_zoom is not None:
-                data_terpilih = st.session_state.pilihan_zoom
+                # --- 4. LOGIKA SWITCHING (TABEL vs DETAIL FOTO DENGAN FIX OTOMATIS ORIENTASI) ---
+                # JIKA ADA FOTO YANG DIKLIK (ZOOM MODE)
+                if st.session_state.pilihan_zoom is not None:
+                    data_terpilih = st.session_state.pilihan_zoom
             
-                with st.container(border=True):
-                    # Baris Tombol Kembali & Nama
-                    col_back, col_title = st.columns([1, 4])
-                    if col_back.button("⬅️ Kembali", use_container_width=True):
-                        st.session_state.pilihan_zoom = None
+                    with st.container(border=True):
+                        # Baris Tombol Kembali & Nama
+                        col_back, col_title = st.columns([1, 4])
+                        if col_back.button("⬅️ Kembali", use_container_width=True):
+                            st.session_state.pilihan_zoom = None
+                            st.rerun()
+                        col_title.markdown(f"### 👤 {data_terpilih['nama']}")
+
+                        # Baris Foto & Info
+                        c1, c2, c3 = st.columns([1, 2, 1])
+                        with c2:
+                            img_path = data_terpilih['foto_profile']
+                            img_modal = get_image_base64(img_path)
+                    
+                            if img_modal:
+                                st.image(img_modal, use_container_width=True)
+                            else:
+                                st.warning("Foto tidak ditemukan.")
+                    
+                        # Info Kelas & Alamat
+                        st.markdown(f"""
+                            <div style="background-color: #f0f7ff; padding: 10px; border-radius: 5px; margin-top: 15px;">
+                                <b>Kelas:</b> {data_terpilih['kelas_1']} | {data_terpilih['kelas_2']} | {data_terpilih['kelas_3']}
+                            </div>
+                        """, unsafe_allow_html=True)
+                    
+                        st.write(f"🏠 **Alamat:** {data_terpilih['alamat']}")
+                        
+                # JIKA TIDAK ADA YANG DIKLIK (TABLE MODE - TETAP STABIL)
+                else:
+                    st.write(f"Menampilkan **{len(df_f)}** alumni.")
+            
+                    df_tampil = df_f.copy()
+                    df_tampil['foto_profile'] = df_tampil['foto_profile'].apply(get_image_base64)
+
+                    event_klik = st.dataframe(
+                        df_tampil, 
+                        column_config={
+                            "foto_profile": st.column_config.ImageColumn("Klik untuk Zoom", width="small"),
+                        }, 
+                        use_container_width=True, 
+                        hide_index=True,
+                        on_select="rerun",
+                        selection_mode="single-row"
+                    )
+
+                    if len(event_klik.selection.rows) > 0:
+                        idx_pilih = event_klik.selection.rows[0]
+                        st.session_state.pilihan_zoom = df_f.iloc[idx_pilih]
                         st.rerun()
-                    col_title.markdown(f"### 👤 {data_terpilih['nama']}")
 
-                    # Baris Foto & Info
-                    c1, c2, c3 = st.columns([1, 2, 1])
-                    with c2:
-                        img_path = data_terpilih['foto_profile']
-                        # Menggunakan fungsi base64 yang sudah kita perbaiki orientasinya
-                        img_modal = get_image_base64(img_path)
-                    
-                        if img_modal:
-                            # --- HAPUS CSS ROTATE TADI ---
-                            # Kita gunakan foto base64 yang sudah diputar otomatis orientasinya
-                            st.image(img_modal, use_container_width=True)
-                        else:
-                            st.warning("Foto tidak ditemukan.")
-                    
-                    # Info Kelas & Alamat (Rapi & Indah)
-                    st.markdown(f"""
-                        <div style="background-color: #f0f7ff; padding: 10px; border-radius: 5px; margin-top: 15px;">
-                            <b>Kelas:</b> {data_terpilih['kelas_1']} | {data_terpilih['kelas_2']} | {data_terpilih['kelas_3']}
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.write(f"🏠 **Alamat:** {data_terpilih['alamat']}")
-        # JIKA TIDAK ADA YANG DIKLIK (TABLE MODE - TETAP STABIL)
-            else:
-                st.write(f"Menampilkan **{len(df_f)}** alumni.")
-            
-                # Siapkan data untuk tabel (Tabel tidak perlu dirotasi, agar tetap sesuai aslinya)
-                df_tampil = df_f.copy()
-                df_tampil['foto_profile'] = df_tampil['foto_profile'].apply(get_image_base64)
-
-                event_klik = st.dataframe(
-                    df_tampil, 
-                    column_config={
-                        "foto_profile": st.column_config.ImageColumn("Klik untuk Zoom", width="small"),
-                    }, 
-                    use_container_width=True, 
-                    hide_index=True,
-                    on_select="rerun",
-                    selection_mode="single-row"
-                )
-
-                if len(event_klik.selection.rows) > 0:
-                    idx_pilih = event_klik.selection.rows[0]
-                    st.session_state.pilihan_zoom = df_f.iloc[idx_pilih]
-                    st.rerun()
 elif st.session_state.menu_aktif == "In Memoriam":
     st.title("🌹 In Memoriam")
     conn = sqlite3.connect('alumni.db')
-    
-    # Menambahkan 'ORDER BY tanggal_wafat DESC' agar yang terbaru muncul di atas
     df_mem = pd.read_sql_query("SELECT * FROM data_memoriam ORDER BY tanggal_wafat DESC", conn)
     conn.close()
     
     if not df_mem.empty:
-        # Memastikan kolom tanggal_wafat terbaca sebagai tanggal agar pengurutan di Pandas juga akurat
         df_mem['tanggal_wafat_dt'] = pd.to_datetime(df_mem['tanggal_wafat'], errors='coerce')
         df_mem = df_mem.sort_values(by='tanggal_wafat_dt', ascending=False)
 
@@ -702,120 +698,155 @@ elif st.session_state.menu_aktif == "In Memoriam":
                     st.image(img, use_container_width=True)
                 
                 st.subheader(row['nama'])
-                
-                # Memformat tampilan tanggal agar lebih rapi (Contoh: 22 March 2026)
                 tgl_tampil = row['tanggal_wafat_dt'].strftime('%d %B %Y') if pd.notnull(row['tanggal_wafat_dt']) else row['tanggal_wafat']
-                
                 st.write(f"**Wafat:** {tgl_tampil}")
                 st.write(row['keterangan'])
                 st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("Data belum tersedia.")
+
 elif st.session_state.menu_aktif == "Donasi":
-    st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>💰 Laporan Donasi & Kas SEMPAT 86</h1></div>', unsafe_allow_html=True)
-    
-    tab1, tab2, tab3 = st.tabs(["💵 Kas Alumni", "🎟️ Laporan Pendanaan Event", "🤝 Laporan Pendanaan Bantuan"])
-    conn = sqlite3.connect('alumni.db')
+    st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>💰 Laporan Keuangan & Kas Alumni</h1></div>', unsafe_allow_html=True)
+    st.write("")
 
-    def ambil_data_all_flow(filter_event=False):
-        conn = sqlite3.connect('alumni.db')
-        if filter_event:            # Hanya ambil yang kategorinya Event
-            query = "SELECT tanggal, keterangan, jumlah, tipe, kategori FROM data_keuangan WHERE kategori = 'Pendanaan Event'"
-        else:
-            # Ambil SEMUA transaksi (Kas Utama)
-            query = "SELECT tanggal, keterangan, jumlah, tipe, kategori FROM data_keuangan"
+    with sqlite3.connect('alumni.db') as conn:
+        query_keuangan = "SELECT id, tanggal, donatur, keterangan, event, jumlah, kategori, tipe FROM data_keuangan"
+        df_all = pd.read_sql_query(query_keuangan, conn)
+
+    if not df_all.empty:
+        total_masuk = df_all[df_all['tipe'].str.contains('Masuk|Debit', case=False, na=False)]['jumlah'].sum()
+        total_keluar = df_all[df_all['tipe'].str.contains('Keluar|Kredit', case=False, na=False)]['jumlah'].sum()
+        saldo_saat_ini = total_masuk - total_keluar
+
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            st.markdown(f'<div class="stat-card"><h5>Total Pemasukan</h5><h3 style="color:#2e7d32;">Rp {total_masuk:,.0f}</h3></div>', unsafe_allow_html=True)
+        with m2:
+            st.markdown(f'<div class="stat-card"><h5>Total Pengeluaran</h5><h3 style="color:#c62828;">Rp {total_keluar:,.0f}</h3></div>', unsafe_allow_html=True)
+        with m3:
+            st.markdown(f'<div class="stat-card"><h5>Saldo Kas Saat Ini</h5><h3 style="color:#1565c0;">Rp {saldo_saat_ini:,.0f}</h3></div>', unsafe_allow_html=True)
+
+        st.write("---")
         
-        df = pd.read_sql_query(query, conn)
-        conn.close()
-        return df
-
-    with tab1:
-        st.subheader("📖 Buku Kas Besar Alumni (Semua Transaksi)")
-        df_all = ambil_data_all_flow(filter_event=False)
-        if not df_all.empty:
-            masuk = df_all[df_all['tipe'] == "Masuk (Debit)"]['jumlah'].sum()
-            keluar = df_all[df_all['tipe'] == "Keluar (Kredit)"]['jumlah'].sum()
-            saldo = masuk - keluar
-          
-            # Ringkasan di atas
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Pemasukan", f"Rp {masuk:,.0f}")
-            c2.metric("Total Pengeluaran", f"Rp {keluar:,.0f}", delta=f"-{keluar:,.0f}", delta_color="inverse")
-            c3.metric("Saldo Kas Saat Ini", f"Rp {saldo:,.0f}")
+        # Sediakan tab untuk memecah laporan kas
+        tab1, tab2, tab3 = st.tabs(["📋 Ringkasan Umum", "🎟️ Laporan Event", "🤝 Bantuan Sosial"])
+        
+        with tab1:
+            st.subheader("Tabel Riwayat Mutasi Keuangan")
+            df_display = df_all.copy()
+            df_display = df_display.sort_values(by='tanggal', ascending=False)
+            df_display = df_display.rename(columns={'donatur': 'Nama Donatur'})
             
-            st.write("---")
-            # Menampilkan kategori agar tahu ini uang iuran atau uang event
-            df_display = df_all.sort_values(by='tanggal', ascending=False)
-            df_display['jumlah'] = df_display['jumlah'].apply(lambda x: f"Rp {x:,.0f}")
-            # Gunakan st.dataframe agar lebih interaktif dan sembunyikan index
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
-        else:
-            st.info("Belum ada mutasi kas.")
+            kolom_rapi = ['tanggal', 'keterangan', 'Nama Donatur', 'jumlah', 'tipe', 'kategori']
+            df_display = df_display[kolom_rapi]
 
-    # --- TAB 2: LAPORAN PENDANAAN EVENT ---
-    with tab2:
-        st.subheader("Laporan Pendanaan Event")
-    
-        with sqlite3.connect('alumni.db') as conn:
-            df_event = pd.read_sql_query("SELECT * FROM data_keuangan WHERE kategori = 'Pendanaan Event'", conn)
+            # --- PROSES PEWARNAAN BARIS KELUAR (MERAH) ---
+            def warnai_merah_jika_keluar(row):
+                # Jika kolom 'tipe' mengandung kata 'Keluar' atau 'Kredit'
+                if 'Keluar' in str(row['tipe']) or 'Kredit' in str(row['tipe']):
+                    # Berikan warna teks merah tua agar tetap kontras dan mudah dibaca
+                    return ['color: #c62828; font-weight: bold;'] * len(row)
+                return [''] * len(row)
 
-        if not df_event.empty:
-            # Dropdown Filter
-            list_ev = ["Semua Event"] + sorted([x for x in df_event['event'].unique() if x])
-            pilih_ev = st.selectbox("Filter per Nama Event:", list_ev)
-        
-            if pilih_ev == "Semua Event":
-                df_fix = df_event
+            # Gunakan Styler untuk memformat mata uang sekaligus menerapkan warna
+            df_styled = (df_display.style
+                            .apply(warnai_merah_jika_keluar, axis=1)
+                            .format({"jumlah": "Rp {:,.0f}"})) # Format rupiah dipindahkan ke sini agar styling tidak error
+
+            # Tampilkan dataframe yang sudah di-style
+            st.dataframe(df_styled, use_container_width=True, hide_index=True)
+
+        with tab2:
+            st.subheader("Laporan Pendanaan Event")
+            df_event = df_all[df_all['kategori'] == 'Pendanaan Event']
+            if not df_event.empty:
+                list_ev = ["Semua Event"] + sorted([x for x in df_event['event'].unique() if x])
+                pilih_ev = st.selectbox("Filter per Nama Event:", list_ev)
+            
+                df_fix = df_event if pilih_ev == "Semua Event" else df_event[df_event['event'] == pilih_ev]
+                tot_ev = df_fix['jumlah'].sum()
+                st.success(f"### Total Biaya {pilih_ev}: **Rp {tot_ev:,.0f}**")
+                st.dataframe(df_fix[['tanggal', 'event', 'keterangan', 'jumlah', 'tipe']], use_container_width=True, hide_index=True)
+                st.markdown(f'<div style="text-align: right; background-color: #f0f2f6; padding: 10px; border-radius: 5px;"><b style="font-size: 20px;">Grand Total: Rp {tot_ev:,.0f}</b></div>', unsafe_allow_html=True)
             else:
-                df_fix = df_event[df_event['event'] == pilih_ev]
-            
-            # Summary Atas
-            tot_ev = df_fix['jumlah'].sum()
-            st.success(f"### Total Biaya {pilih_ev}: **Rp {tot_ev:,.0f}**")
-        
-            # Tabel (Tanpa kolom kategori karena sudah pasti Pendanaan Event)
-            st.dataframe(df_fix[['tanggal', 'event', 'keterangan', 'jumlah', 'tipe']], use_container_width=True, hide_index=True)
-        
-            # Total Bawah (di luar tabel)
-            st.markdown(f"""
-                <div style="text-align: right; background-color: #f0f2f6; padding: 10px; border-radius: 5px;">
-                    <b style="font-size: 20px;">Grand Total: Rp {tot_ev:,.0f}</b>
-                </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.info("Belum ada transaksi untuk pendanaan event sejak 16 Maret 2026.")
+                st.info("Belum ada transaksi untuk pendanaan event.")
 
-    # --- TAB 3: LAPORAN PENDANAAN BANTUAN ---
-    with tab3:
-        st.subheader("🤝 Laporan Khusus Bantuan Sosial")
-        # Panggil fungsi utama dengan filter kategori Bantuan Sosial
-        df_sosial = ambil_data_all_flow(filter_event=False) 
-        
-        # Filter manual agar hanya menampilkan kategori Bantuan Sosial
-        df_sosial = df_sosial[df_sosial['kategori'] == "Bantuan Sosial"]
-        
-        if not df_sosial.empty:
-            total_sosial = df_sosial['jumlah'].sum()
-            st.info(f"### Total Dana Bantuan Sosial: **Rp {total_sosial:,.0f}**")
+        with tab3:
+            st.subheader("🤝 Laporan Khusus Bantuan Sosial")
+            df_sosial = df_all[df_all['kategori'] == "Bantuan Sosial"]
+            if not df_sosial.empty:
+                total_sosial = df_sosial['jumlah'].sum()
+                st.info(f"### Total Dana Bantuan Sosial: **Rp {total_sosial:,.0f}**")
+                df_sos_display = df_sosial.copy()
+                df_sos_display['jumlah'] = df_sos_display['jumlah'].apply(lambda x: f"Rp {x:,.0f}")
+                st.dataframe(df_sos_display, use_container_width=True, hide_index=True)
+            else:
+                st.warning("Belum ada transaksi untuk kategori Bantuan Sosial.")
+        # ======================================================================
+        # 📱 GENERATOR LAPORAN BULANAN (SHARE WA) - TANPA NAMA DONATUR
+        # ======================================================================
+        st.write("---")
+        st.markdown('<div style="background:#e3f2fd;padding:15px;border-radius:10px;border-left:5px solid #2196f3;"><h3>📱 Generator Laporan Bulanan (Share WA)</h3></div>', unsafe_allow_html=True)
+        st.write("Fitur ini digunakan untuk menyusun ringkasan mutasi yang siap disalin dan dikirim ke grup WhatsApp agar alumni yang menggunakan HP mudah membaca laporan.")
+
+        col_bln, col_thn = st.columns(2)
+        with col_bln:
+            bulan_pilihan = st.selectbox(
+                "Pilih Bulan Laporan", 
+                ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"],
+                index=5 # Default otomatis ke Juni
+            )
+        with col_thn:
+            tahun_pilihan = st.selectbox("Pilih Tahun", [2026, 2027, 2028], index=0)
+
+        mapping_bulan = {
+            "Januari": "01", "Februari": "02", "Maret": "03", "April": "04", 
+            "Mei": "05", "Juni": "06", "Juli": "07", "Agustus": "08", 
+            "September": "09", "Oktober": "10", "November": "11", "Desember": "12"
+        }
+
+        bln_angka = mapping_bulan[bulan_pilihan]
+        filter_format = f"{tahun_pilihan}-{bln_angka}"
+
+        df_bulan_ini = df_all[df_all['tanggal'].str.startswith(filter_format, na=False)]
+
+        if not df_bulan_ini.empty:
+            masuk_bln = df_bulan_ini[df_bulan_ini['tipe'].str.contains('Masuk|Debit', case=False, na=False)]['jumlah'].sum()
+            keluar_bln = df_bulan_ini[df_bulan_ini['tipe'].str.contains('Keluar|Kredit', case=False, na=False)]['jumlah'].sum()
+            saldo_bln = masuk_bln - keluar_bln
             
-            # Tampilkan tabel tanpa index agar rapi
-            df_sos_display = df_sosial.copy()
-            df_sos_display['jumlah'] = df_sos_display['jumlah'].apply(lambda x: f"Rp {x:,.0f}")
-            st.dataframe(df_sos_display, use_container_width=True, hide_index=True)
+            teks_wa = f"*LAPORAN KEUANGAN KAS ALUMNI SEMPAT-86*\n"
+            teks_wa += f"*Periode:* {bulan_pilihan} {tahun_pilihan}\n\n"
+            teks_wa += f"💰 *RINGKASAN UTAMA:*\n"
+            teks_wa += f"▪️ Total Pemasukan Bulanan: Rp {masuk_bln:,.0f}\n"
+            teks_wa += f"▪️ Total Pengeluaran Bulanan: Rp {keluar_bln:,.0f}\n"
+            teks_wa += f"▪️ Selisih Mutasi Bulan Ini: Rp {saldo_bln:,.0f}\n"
+            teks_wa += f"▪️ *TOTAL SALDO KAS SAAT INI: Rp {saldo_saat_ini:,.0f}*\n\n"
+            teks_wa += f"📜 *RINCIAN MUTASI TRANSAKSI:*\n"
+            
+            for idx, row in df_bulan_ini.sort_values(by='tanggal').iterrows():
+                icon = "🟢 [Masuk]" if ('Masuk' in str(row['tipe']) or 'Debit' in str(row['tipe'])) else "🔴 [Keluar]"
+                # Di sini baris nama donatur (row['donatur']) sudah dihapus total
+                teks_wa += f"{icon} {row['tanggal']} | {row['keterangan']} : *Rp {row['jumlah']:,.0f}*\n"
+                
+            teks_wa += f"\n_Laporan ini dibuat otomatis melalui Sistem Kas Alumni Sempat-86._"
+            
+            st.text_area("Salin teks di bawah ini untuk dibagikan ke Grup WA:", value=teks_wa, height=270)
         else:
-            st.warning("Belum ada transaksi untuk kategori Bantuan Sosial sejak 16 Maret 2026.")
-# --- F. MENU NETWORKING ---
+            st.info(f"ℹ️ Belum ada data mutasi keuangan untuk periode {bulan_pilihan} {tahun_pilihan}.")
+
+    else:
+        st.info("ℹ️ Belum ada catatan riwayat mutasi keuangan di database.")
+
 elif st.session_state.menu_aktif == "Networking":
     st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>🛍️ Marketplace Alumni SEMPAT 86</h1></div>', unsafe_allow_html=True)
     
-    # --- 1. FORM INPUT USAHA (Di dalam Expander) ---
     with st.expander("➕ Pasang Iklan Usaha Anda"):
-        # Pastikan tabel marketplace sudah ada (Pengaman jika belum terbuat)
         conn = sqlite3.connect('alumni.db')
         conn.execute('''CREATE TABLE IF NOT EXISTS marketplace 
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                      nama_alumni TEXT, nama_produk TEXT, harga TEXT, 
-                      deskripsi TEXT, foto_produk TEXT, no_wa TEXT)''')
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                        nama_alumni TEXT, nama_produk TEXT, harga TEXT, 
+                        deskripsi TEXT, foto_produk TEXT, no_wa TEXT)''')
         conn.close()
 
         with st.form("form_usaha", clear_on_submit=True):
@@ -842,10 +873,9 @@ elif st.session_state.menu_aktif == "Networking":
                             list_foto.append(encoded)
                         
                         foto_gabungan = "||".join(list_foto)
-                        
                         conn = sqlite3.connect('alumni.db')
                         conn.execute("INSERT INTO marketplace (nama_alumni, nama_produk, harga, deskripsi, foto_produk, no_wa) VALUES (?, ?, ?, ?, ?, ?)", 
-                                     (st.session_state.get('nama', 'Alumni'), nama_p, harga_p, desc_p, foto_gabungan, wa_p))
+                                        (st.session_state.get('nama', 'Alumni'), nama_p, harga_p, desc_p, foto_gabungan, wa_p))
                         conn.commit()
                         conn.close()
                         st.success("Iklan berhasil ditayangkan!")
@@ -855,10 +885,8 @@ elif st.session_state.menu_aktif == "Networking":
 
     st.markdown("---")
 
-    # --- 2. TAMPILAN KATALOG PRODUK ---
     conn = sqlite3.connect('alumni.db')
     try:
-        # Ambil data terbaru
         df_mkt = pd.read_sql_query("SELECT * FROM marketplace ORDER BY id DESC", conn)
     except Exception as e:
         df_mkt = pd.DataFrame()
@@ -870,11 +898,9 @@ elif st.session_state.menu_aktif == "Networking":
         cols = st.columns(3)
         for i, (idx, row) in enumerate(df_mkt.iterrows()):
             with cols[i % 3]:
-                # Pecah string foto
                 list_img = row['foto_produk'].split("||")
                 foto_sampul = list_img[0]
                 
-                # Tampilan Card HTML
                 st.markdown(f"""
                 <div style="border: 1px solid #ddd; border-radius: 15px; padding: 10px; background: white; box-shadow: 0px 4px 10px rgba(0,0,0,0.1); margin-bottom: 10px;">
                     <img src="data:image/png;base64,{foto_sampul}" style="width: 100%; height: 160px; object-fit: cover; border-radius: 10px;">
@@ -884,23 +910,17 @@ elif st.session_state.menu_aktif == "Networking":
                 </div>
                 """, unsafe_allow_html=True)
 
-                # FUNGSI DIALOG (Popup Slideshow)
                 @st.dialog(f"Detail: {row['nama_produk']}")
                 def detail_produk(data, images):
                     st.image([f"data:image/png;base64,{img}" for img in images], 
-                             caption=[f"Foto {j+1}" for j in range(len(images))],
-                             use_container_width=True)
-                    
+                                caption=[f"Foto {j+1}" for j in range(len(images))],
+                                use_container_width=True)
                     st.write(f"**💰 Harga:** {data['harga']}")
                     st.write(f"**📝 Deskripsi:**")
                     st.info(data['deskripsi'])
-                    
-                    # Bersihkan nomor WA jika ada karakter non-angka
                     wa_clean = ''.join(filter(str.isdigit, str(data['no_wa'])))
-                    wa_link = f"https://wa.me/{wa_clean}"
-                    st.link_button("🛒 Hubungi via WhatsApp", wa_link, use_container_width=True)
+                    st.link_button("🛒 Hubungi via WhatsApp", f"https://wa.me/{wa_clean}", use_container_width=True)
 
-                # Tombol Lihat Detail
                 if st.button(f"🔍 Detail ({len(list_img)} Foto)", key=f"btn_mkt_{row['id']}", use_container_width=True):
                     detail_produk(row, list_img)
     else:
@@ -909,21 +929,17 @@ elif st.session_state.menu_aktif == "Networking":
 elif st.session_state.menu_aktif == "Seputar Sempat-86":
     st.title("🎭 Seputar Sempat-86")
     
-    # --- BAGIAN ATAS: CHAT ROOM ---
     st.subheader("💬 Pojok Ngobrol Alumni")
     with st.container(border=True):
-        # Gunakan tabel data_komentar yang sudah ada atau buat tabel chat khusus
         with sqlite3.connect('alumni.db') as conn:
             df_chat = pd.read_sql_query("SELECT * FROM data_komentar WHERE event_deskripsi = 'CHAT_ROOM' ORDER BY id DESC LIMIT 10", conn)
         
-        # Tampilan Pesan Chat
         chat_placeholder = st.empty()
         with chat_placeholder.container():
             for _, msg in df_chat[::-1].iterrows():
                 st.markdown(f"**{msg['nama_penulis']}**: {msg['isi_komentar']}  \n<small style='color:gray;'>{msg['waktu']}</small>", unsafe_allow_html=True)
                 st.write("---")
         
-        # Input Chat
         with st.form("form_chat", clear_on_submit=True):
             pesan = st.text_input("Ketik pesan...", placeholder=f"tulis pesan disini, {st.session_state.user_nama}!")
             if st.form_submit_button("Kirim"):
@@ -931,28 +947,38 @@ elif st.session_state.menu_aktif == "Seputar Sempat-86":
                     waktu = datetime.now().strftime("%H:%M")
                     with sqlite3.connect('alumni.db') as conn:
                         conn.execute("INSERT INTO data_komentar (event_deskripsi, nama_penulis, isi_komentar, waktu) VALUES (?,?,?,?)",
-                                     ('CHAT_ROOM', st.session_state.user_nama, pesan, waktu))
+                                        ('CHAT_ROOM', st.session_state.user_nama, pesan, waktu))
                     st.rerun()
 
-    st.write("##") # Spasi antar bagian
-
-# --- BAGIAN BAWAH: KOLEKSI CERPEN ---
+    st.write("##") 
     st.write("---")
     st.subheader("📚 Galeri Cerita Pendek")
 
-# 1. Ambil data dari database
     with sqlite3.connect('alumni.db') as conn:
         df_cerpen = pd.read_sql_query("SELECT * FROM data_cerpen ORDER BY id DESC", conn)
 
-# 2. Cek apakah ada data cerpen
     if not df_cerpen.empty:
         cols = st.columns(2)
-    
-        for i, row in df_cerpen.iterrows():
-            cp_id = row['id']
         
+        # Pendefinisian Fungsi Modal Dialog Cerpen yang Rapi & Unik
+        @st.dialog("📖 Baca Cerita Lengkap", width="large")
+        def popup_baca_cerpen(judul, penulis, isi):
+            st.markdown(f"### {judul}")
+            st.markdown(f"**Karya: {penulis}**")
+            st.write("---")
+            st.markdown(f"""
+                <div style="white-space: pre-wrap; font-family: 'Georgia', serif; font-size: 18px; 
+                            line-height: 1.8; text-align: justify; color: #2c3e50;
+                            background-color: #fdfdfd; padding: 15px; border-radius: 10px;">
+                    {isi}
+                </div>
+            """, unsafe_allow_html=True)
+            st.write("---")
+            if st.button("Tutup", use_container_width=True):
+                st.rerun()
+
+        for i, row in df_cerpen.iterrows():
             with cols[i % 2].container(border=True):
-            # --- TAMPILAN KARTU (CARD) ---
                 img_base64 = get_image_base64(row['poster'])
                 if img_base64:
                     st.image(img_base64, use_container_width=True)
@@ -961,45 +987,8 @@ elif st.session_state.menu_aktif == "Seputar Sempat-86":
                 st.caption(f"✍️ Oleh: {row['penulis']}")
                 st.write(f"*{row['sinopsis']}*")
             
-            # --- FUNGSI MODAL DIALOG ---
-                @st.dialog(f"📖 {row['judul']}", width="large")
-                def baca_cerita_lengkap(data):
-                # Info Penulis
-                    st.markdown(f"**Karya: {data['penulis']}**")
-                    st.write("---")
-                
-                # TAMPILAN ISI CERITA (Format Novel Rapi)
-                    st.markdown(f"""
-                    <div style="
-                        white-space: pre-wrap; 
-                        font-family: 'Georgia', serif; 
-                        font-size: 18px; 
-                        line-height: 1.8; 
-                        text-align: justify; 
-                        color: #2c3e50;
-                        background-color: #fdfdfd;
-                        padding: 15px;
-                        border-radius: 10px;
-                        ">
-
-{data['isi_lengkap']}
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                st.write("---")
-                
-
-
-            # --- TOMBOL PEMICU DIALOG ---
-            if st.button(f"📖 Baca Selengkapnya: {row['judul']}", key=f"btn_cerita_{row['id']}", use_container_width=True):
-                            @st.dialog(row['judul'], width="large")
-                            def baca_cerita(isi, author):
-                                st.markdown(f"**Karya: {author}**")
-                                st.write("---")
-                                st.write(isi)
-                                if st.button("Tutup"):
-                                    st.rerun()
-                            baca_cerita(row['isi_lengkap'], row['penulis'])
-else:
-    st.info("Belum ada cerpen yang ditayangkan.")
-
+                # Cukup satu tombol dengan satu pemicu fungsi dialog yang bersih
+                if st.button(f"📖 Baca: {row['judul']}", key=f"btn_cerita_{row['id']}", use_container_width=True):
+                    popup_baca_cerpen(row['judul'], row['penulis'], row['isi_lengkap'])
+    else:
+        st.info("Belum ada cerpen yang ditayangkan.")
