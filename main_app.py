@@ -733,28 +733,35 @@ elif st.session_state.menu_aktif == "Donasi":
         
         with tab1:
             st.subheader("Tabel Riwayat Mutasi Keuangan")
+            
+            # --- 💡 PILIHAN UNTUK MENAMPILKAN/SEMBUNYIKAN NAMA DONATUR DI TABEL ---
+            tampilkan_donatur_tabel = st.checkbox("Tampilkan Nama Donatur di Tabel Riwayat", value=True)
+            
             df_display = df_all.copy()
             df_display = df_display.sort_values(by='tanggal', ascending=False)
             df_display = df_display.rename(columns={'donatur': 'Nama Donatur'})
             
-            kolom_rapi = ['tanggal', 'keterangan', 'Nama Donatur', 'jumlah', 'tipe', 'kategori']
+            # Pengkondisian kolom berdasarkan opsi pilihan checkbox
+            if tampilkan_donatur_tabel:
+                kolom_rapi = ['tanggal', 'keterangan', 'Nama Donatur', 'jumlah', 'tipe', 'kategori']
+            else:
+                kolom_rapi = ['tanggal', 'keterangan', 'jumlah', 'tipe', 'kategori']
+                
             df_display = df_display[kolom_rapi]
 
             # --- PROSES PEWARNAAN BARIS KELUAR (MERAH) ---
             def warnai_merah_jika_keluar(row):
-                # Jika kolom 'tipe' mengandung kata 'Keluar' atau 'Kredit'
                 if 'Keluar' in str(row['tipe']) or 'Kredit' in str(row['tipe']):
-                    # Berikan warna teks merah tua agar tetap kontras dan mudah dibaca
                     return ['color: #c62828; font-weight: bold;'] * len(row)
                 return [''] * len(row)
 
             # Gunakan Styler untuk memformat mata uang sekaligus menerapkan warna
             df_styled = (df_display.style
                             .apply(warnai_merah_jika_keluar, axis=1)
-                            .format({"jumlah": "Rp {:,.0f}"})) # Format rupiah dipindahkan ke sini agar styling tidak error
+                            .format({"jumlah": "Rp {:,.0f}"})) 
 
             # Tampilkan dataframe yang sudah di-style
-            st.dataframe(df_styled, use_container_width=True, hide_index=True)
+            st.dataframe(df_styled, use_container_width=True, hide_index=True, height=1100)
 
         with tab2:
             st.subheader("Laporan Pendanaan Event")
@@ -783,7 +790,7 @@ elif st.session_state.menu_aktif == "Donasi":
             else:
                 st.warning("Belum ada transaksi untuk kategori Bantuan Sosial.")
         # ======================================================================
-        # 📱 GENERATOR LAPORAN BULANAN (SHARE WA) - TANPA NAMA DONATUR
+        # 📱 GENERATOR LAPORAN BULANAN (SHARE WA) - DENGAN OPSI NAMA DONATUR
         # ======================================================================
         st.write("---")
         st.markdown('<div style="background:#e3f2fd;padding:15px;border-radius:10px;border-left:5px solid #2196f3;"><h3>📱 Generator Laporan Bulanan (Share WA)</h3></div>', unsafe_allow_html=True)
@@ -798,6 +805,9 @@ elif st.session_state.menu_aktif == "Donasi":
             )
         with col_thn:
             tahun_pilihan = st.selectbox("Pilih Tahun", [2026, 2027, 2028], index=0)
+
+        # --- TOMBOL PILIHAN TAMPILKAN NAMA DONATUR ---
+        tampilkan_nama = st.checkbox("Tampilkan Nama Donatur dalam Rincian Transaksi", value=False)
 
         mapping_bulan = {
             "Januari": "01", "Februari": "02", "Maret": "03", "April": "04", 
@@ -815,21 +825,26 @@ elif st.session_state.menu_aktif == "Donasi":
             keluar_bln = df_bulan_ini[df_bulan_ini['tipe'].str.contains('Keluar|Kredit', case=False, na=False)]['jumlah'].sum()
             saldo_bln = masuk_bln - keluar_bln
             
-            teks_wa = f"*LAPORAN KEUANGAN KAS ALUMNI SEMPAT-86*\n"
+            teks_wa = f"*LAPORAN KEUANGAN KAS ALUMNI*\n"
             teks_wa += f"*Periode:* {bulan_pilihan} {tahun_pilihan}\n\n"
             teks_wa += f"💰 *RINGKASAN UTAMA:*\n"
             teks_wa += f"▪️ Total Pemasukan Bulanan: Rp {masuk_bln:,.0f}\n"
             teks_wa += f"▪️ Total Pengeluaran Bulanan: Rp {keluar_bln:,.0f}\n"
             teks_wa += f"▪️ Selisih Mutasi Bulan Ini: Rp {saldo_bln:,.0f}\n"
-            teks_wa += f"▪️ *TOTAL SALDO KAS SAAT INI: Rp {saldo_saat_ini:,.0f}*\n\n"
+            teks_wa += f"▪️ *TOTAL SALDO KAS SAAT INI: Rp {saldo_saat_ini:,.0f}* 👉\n\n"
             teks_wa += f"📜 *RINCIAN MUTASI TRANSAKSI:*\n"
             
             for idx, row in df_bulan_ini.sort_values(by='tanggal').iterrows():
                 icon = "🟢 [Masuk]" if ('Masuk' in str(row['tipe']) or 'Debit' in str(row['tipe'])) else "🔴 [Keluar]"
-                # Di sini baris nama donatur (row['donatur']) sudah dihapus total
-                teks_wa += f"{icon} {row['tanggal']} | {row['keterangan']} : *Rp {row['jumlah']:,.0f}*\n"
                 
-            teks_wa += f"\n_Laporan ini dibuat otomatis melalui Sistem Kas Alumni Sempat-86._"
+                # Aturan pengecekan opsi nama donatur
+                donatur_info = ""
+                if tampilkan_nama and pd.notna(row['donatur']) and str(row['donatur']) != 'None':
+                    donatur_info = f" ({row['donatur']})"
+                    
+                teks_wa += f"{icon} {row['tanggal']} | {row['keterangan']}{donatur_info} : *Rp {row['jumlah']:,.0f}*\n"
+                
+            teks_wa += f"\n_Laporan ini dibuat otomatis melalui Sistem Kas Alumni._"
             
             st.text_area("Salin teks di bawah ini untuk dibagikan ke Grup WA:", value=teks_wa, height=270)
         else:
@@ -839,7 +854,7 @@ elif st.session_state.menu_aktif == "Donasi":
         st.info("ℹ️ Belum ada catatan riwayat mutasi keuangan di database.")
 
 elif st.session_state.menu_aktif == "Networking":
-    st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>🛍️ Marketplace Alumni SEMPAT 86</h1></div>', unsafe_allow_html=True)
+    st.markdown('<div style="background:#2b5298;padding:20px;border-radius:10px;color:white;text-align:center;"><h1>🛍️ SEMPAT Mart</h1></div>', unsafe_allow_html=True)
     
     with st.expander("➕ Pasang Iklan Usaha Anda"):
         conn = sqlite3.connect('alumni.db')
